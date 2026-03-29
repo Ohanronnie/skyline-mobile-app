@@ -5,13 +5,14 @@ import { Container, ContainerStatus, deleteContainer } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -33,10 +34,19 @@ const filterOptions = [
 export default function Containers() {
   const [selectedFilter, setSelectedFilter] = useState("All containers");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingContainer, setEditingContainer] = useState<Container | null>(
     null,
   );
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const {
     data: containersData,
@@ -45,7 +55,8 @@ export default function Containers() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useContainers();
+    isRefetching,
+  } = useContainers(debouncedSearch);
 
   const queryClient = useQueryClient();
 
@@ -106,22 +117,13 @@ export default function Containers() {
   const filteredContainers = useMemo(() => {
     return allContainers.filter((container: Container) => {
       if (!container) return false;
-      const matchesSearch =
-        container.containerNumber
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        (container.currentLocation
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase()) ??
-          false);
-
       const matchesFilter =
         selectedFilter === "All containers" ||
         formatStatus(container.status) === selectedFilter;
 
-      return matchesSearch && matchesFilter;
+      return matchesFilter;
     });
-  }, [allContainers, searchQuery, selectedFilter]);
+  }, [allContainers, selectedFilter]);
 
   const handleOpenAdd = () => {
     setEditingContainer(null);
@@ -176,6 +178,14 @@ export default function Containers() {
               <ActivityIndicator size="small" color="#1A293B" />
             </View>
           ) : null
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
         }
         renderItem={({ item: container }: { item: Container }) => (
           <View className="px-4 mb-4">
@@ -400,12 +410,8 @@ export default function Containers() {
                 etaGhana: editingContainer.etaGhana,
                 arrivalDate: editingContainer.arrivalDate,
                 currentLocation: editingContainer.currentLocation,
-                customerIds: editingContainer.customerIds?.map((c) =>
-                  typeof c === "string" ? c : (c as any)._id,
-                ),
-                partnerIds: editingContainer.partnerIds?.map((p) =>
-                  typeof p === "string" ? p : (p as any)._id,
-                ),
+                customerIds: editingContainer.customerIds as any,
+                partnerIds: editingContainer.partnerIds as any,
               }
             : undefined
         }

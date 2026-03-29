@@ -1,11 +1,11 @@
 import { ShipmentCard } from "@/components/partners/ShipmentCard";
 import { Box } from "@/components/ui/box";
 import { useRequireAuth } from "@/contexts/AuthContext";
-import { useShipments } from "@/hooks/useShipments";
+import { usePartnerShipments } from "@/hooks/useShipments";
 import { Shipment } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -24,49 +24,39 @@ const FILTERS = ["All", "Pending assignment", "Assigned"];
 
 export default function PartnersShipmentsScreen() {
   useRequireAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [activeFilter, setActiveFilter] = useState("All");
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const {
     data: shipmentsData,
     isLoading,
     error,
     refetch,
     isRefetching,
-  } = useShipments();
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = usePartnerShipments(debouncedSearch);
 
   const shipments =
     shipmentsData?.pages
       ?.flatMap((page: any) => (page && page.data ? page.data : page))
       .filter(Boolean) || [];
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [searchQuery, setSearchQuery] = useState("");
-
-  // Debug logging
-  if (error) {
-    console.log("[Partner Shipments Error]", JSON.stringify(error, null, 2));
-    const axiosError = error as any;
-    console.log(
-      "[Partner Shipments Error Response]",
-      axiosError?.response?.data,
-    );
-    console.log(
-      "[Partner Shipments Error Status]",
-      axiosError?.response?.status,
-    );
-  }
 
   const filteredShipments = useMemo(() => {
     if (!shipments) return [];
 
     return shipments.filter((shipment: Shipment) => {
-      // Search filter
-      const matchesSearch =
-        shipment.trackingNumber
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        shipment.description?.toLowerCase().includes(searchQuery.toLowerCase());
-
-      if (!matchesSearch) return false;
-
-      // Status filter
+      // Search is handled by server, but we still need activeFilter
       if (activeFilter === "All") return true;
 
       // Map backend status to partner UI status
@@ -76,7 +66,7 @@ export default function PartnersShipmentsScreen() {
 
       return false;
     });
-  }, [shipments, activeFilter, searchQuery]);
+  }, [shipments, activeFilter]);
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -103,6 +93,12 @@ export default function PartnersShipmentsScreen() {
       <FlatList
         data={filteredShipments}
         keyExtractor={(item) => item._id}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.5}
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
           <RefreshControl
@@ -120,7 +116,7 @@ export default function PartnersShipmentsScreen() {
                 <Ionicons name="search" size={20} color="#9CA3AF" />
                 <TextInput
                   className="flex-1 ml-2 text-base text-gray-900"
-                  placeholder="Search partner..."
+                  placeholder="Search shipments..."
                   placeholderTextColor="#9CA3AF"
                   value={searchQuery}
                   onChangeText={setSearchQuery}

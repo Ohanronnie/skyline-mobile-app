@@ -2,6 +2,7 @@ import { Box } from "@/components/ui/box";
 import { useAuth } from "@/contexts/AuthContext";
 import { useShipments } from "@/hooks/useShipments";
 import { Shipment, ShipmentStatus } from "@/lib/api";
+import { getShipmentProgressPercentage, getShipmentStatusColor } from "@/lib/shipment";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -145,12 +146,9 @@ export default function CustomerShipments() {
                         style={{ height: 3 }}
                       >
                         <View
-                          className={`h-full rounded-full ${shipment.status === ShipmentStatus.DELIVERED ? "bg-green-500" : "bg-primary"}`}
+                          className={`h-full rounded-full ${getShipmentStatusColor(shipment.status)}`}
                           style={{
-                            width:
-                              shipment.status === ShipmentStatus.DELIVERED
-                                ? "100%"
-                                : "50%",
+                            width: getShipmentProgressPercentage(shipment.status) as any,
                           }}
                         />
                       </View>

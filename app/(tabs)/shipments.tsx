@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,7 @@ import {
   Image,
   Platform,
   Pressable,
+  RefreshControl,
   Text,
   View,
 } from "react-native";
@@ -22,6 +23,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Shipments() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportType, setReportType] = useState<"detailed" | "summary" | "">("");
@@ -44,6 +46,14 @@ export default function Shipments() {
     partnerIds?: string[];
   } | null>(null);
 
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const {
     data: shipmentsData,
     isLoading,
@@ -51,7 +61,9 @@ export default function Shipments() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useShipments();
+    refetch,
+    isRefetching,
+  } = useShipments(debouncedSearch);
   const deleteMutation = useDeleteShipment();
 
   const handleDelete = (id: string) => {
@@ -100,29 +112,8 @@ export default function Shipments() {
   const filteredShipments =
     allShipments.filter((shipment: Shipment) => {
       if (!shipment) return false;
-      // Handle containerId - can be string or populated object
-      const containerNumber =
-        typeof shipment.containerId === "object"
-          ? shipment.containerId.containerNumber
-          : "";
-      const matchesContainer = containerNumber
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-
-      const matchesSearch =
-        shipment.trackingNumber
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        shipment.description
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        matchesContainer;
-
-      if (selectedFilter === "all") return matchesSearch;
-
-      // Filter by status
-      const matchesFilter = shipment.status === selectedFilter;
-      return matchesSearch && matchesFilter;
+      if (selectedFilter === "all") return true;
+      return shipment.status === selectedFilter;
     }) || [];
 
   const renderShipmentItem = ({ item }: { item: Shipment }) => {
@@ -196,27 +187,11 @@ export default function Shipments() {
                 id: item._id,
                 trackingNumber: item.trackingNumber,
                 customerIds:
-                  item.customerIds?.map((c: any) =>
-                    typeof c === "object" ? c._id : c,
-                  ) ||
-                  (item.customerId
-                    ? [
-                        typeof item.customerId === "object"
-                          ? item.customerId._id
-                          : item.customerId,
-                      ]
-                    : []),
+                  item.customerIds ||
+                  (item.customerId ? [item.customerId] : []) as any,
                 partnerIds:
-                  item.partnerIds?.map((p: any) =>
-                    typeof p === "object" ? p._id : p,
-                  ) ||
-                  (item.partnerId
-                    ? [
-                        typeof item.partnerId === "object"
-                          ? item.partnerId._id
-                          : item.partnerId,
-                      ]
-                    : []),
+                  item.partnerIds ||
+                  (item.partnerId ? [item.partnerId] : []) as any,
                 status: item.status,
                 container:
                   typeof item.containerId === "object"
@@ -331,6 +306,14 @@ export default function Shipments() {
               <ActivityIndicator size="small" color="#1A293B" />
             </View>
           ) : null
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
         }
         contentContainerStyle={{
           paddingBottom: Platform.OS === "ios" ? 88 : 100,

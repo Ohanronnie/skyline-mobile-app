@@ -26,6 +26,7 @@ export default function CargoScreen() {
     data: cargoList = [],
     isLoading,
     refetch,
+    isRefetching,
   } = useQuery({
     queryKey: ["cargo"],
     queryFn: getCargo,
@@ -128,7 +129,12 @@ export default function CargoScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refetch} />
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
         }
       >
         <View className="px-4 pt-6">

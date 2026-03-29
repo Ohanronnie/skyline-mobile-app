@@ -1,9 +1,9 @@
 import { Box } from "@/components/ui/box";
 import { sendPartnerOtp } from "@/lib/api";
+import { validateAndFormatPhoneNumber } from "@/lib/phone";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { isValidPhoneNumber, parsePhoneNumber } from "libphonenumber-js";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -20,38 +20,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Validate Ghana phone number using libphonenumber
-const validateGhanaPhoneNumber = (
-  phoneNumber: string
-): { isValid: boolean; error?: string; formatted?: string } => {
-  try {
-    // Remove spaces for validation
-    const cleaned = phoneNumber.replace(/\s/g, "");
-
-    // Add +233 prefix if not present
-    const fullNumber = cleaned.startsWith("+233")
-      ? cleaned
-      : cleaned.startsWith("233")
-      ? `+${cleaned}`
-      : cleaned.startsWith("0")
-      ? `+233${cleaned.slice(1)}`
-      : `+233${cleaned}`;
-
-    // Validate using libphonenumber
-    if (!isValidPhoneNumber(fullNumber, "GH")) {
-      return { isValid: false, error: "Invalid Ghana phone number" };
-    }
-
-    // Parse and format the number
-    const parsed = parsePhoneNumber(fullNumber, "GH");
-    return {
-      isValid: true,
-      formatted: parsed.formatInternational(),
-    };
-  } catch (error) {
-    return { isValid: false, error: "Invalid phone number format" };
-  }
-};
 
 // Format phone number as user types (adds spaces for readability)
 const formatPhoneNumber = (value: string): string => {
@@ -90,36 +58,24 @@ export default function PartnerLogin() {
       // Clear previous errors
       setError("");
 
-      // Remove spaces for validation
-      const cleanedPhone = phoneNumber.replace(/\s/g, "");
+      const digitsOnly = phoneNumber.replace(/\s/g, "");
+      
+      // Combine with the +233 prefix shown in UI
+      const fullNumber = `+233${digitsOnly}`;
 
-      // Validate phone number using libphonenumber
-      const validation = validateGhanaPhoneNumber(cleanedPhone);
-      if (!validation.isValid) {
-        setError(validation.error || "Invalid phone number");
+      // Validate using our central utility
+      const validatedNumber = validateAndFormatPhoneNumber(fullNumber);
+      if (!validatedNumber) {
+        setError("Invalid Ghana phone number");
         return;
       }
 
-      // Use the formatted number from libphonenumber
-      // It will be in format +233 XX XXX XXXX, we need +233XXXXXXXXX
-      const fullNumber = cleanedPhone.startsWith("+233")
-        ? cleanedPhone.replace(/\s/g, "")
-        : cleanedPhone.startsWith("233")
-        ? `+${cleanedPhone.replace(/\s/g, "")}`
-        : cleanedPhone.startsWith("0")
-        ? `+233${cleanedPhone.slice(1).replace(/\s/g, "")}`
-        : `+233${cleanedPhone.replace(/\s/g, "")}`;
-
-      // Parse to get the correct format
-      const parsed = parsePhoneNumber(fullNumber, "GH");
-      const fullPhoneNumber = parsed.number; // Returns in E.164 format: +233XXXXXXXXX
-
       setIsLoading(true);
-      await sendPartnerOtp(fullPhoneNumber);
+      await sendPartnerOtp(validatedNumber);
       router.push({
         pathname: "/(auth)/partner-verify-otp",
         params: {
-          phoneNumber: fullPhoneNumber,
+          phoneNumber: validatedNumber,
           organization:
             typeof organization === "string"
               ? organization

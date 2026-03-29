@@ -1,13 +1,16 @@
+import { useDeleteWarehouse } from "@/hooks/useShipments";
 import { getWarehouseDetails, Shipment } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import {
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -21,6 +24,7 @@ const formatStatus = (status: string) => {
 export default function WarehouseDetails() {
   const params = useLocalSearchParams();
   const warehouseId = params.id as string;
+  const deleteWarehouseMutation = useDeleteWarehouse();
 
   const {
     data: warehouse,
@@ -59,6 +63,39 @@ export default function WarehouseDetails() {
 
   const totalCapacity = warehouse.capacity || 0;
   const currentUtilization = warehouse.currentUtilization || 0;
+
+  const handleDeleteWarehouse = () => {
+    Alert.alert(
+      "Delete warehouse",
+      `Are you sure you want to delete "${warehouse.name}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            deleteWarehouseMutation.mutate(warehouseId, {
+              onSuccess: () => {
+                router.back();
+              },
+              onError: (error: unknown) => {
+                const err = error as {
+                  response?: { data?: { message?: string } };
+                  message?: string;
+                };
+                Alert.alert(
+                  "Error",
+                  err?.response?.data?.message ||
+                    err?.message ||
+                    "Failed to delete warehouse",
+                );
+              },
+            });
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -306,6 +343,22 @@ export default function WarehouseDetails() {
               )}
             </View>
           </View>
+
+          <Pressable
+            onPress={handleDeleteWarehouse}
+            disabled={deleteWarehouseMutation.isPending}
+            android_ripple={{ color: "rgba(0,0,0,0.06)" }}
+            className="mt-2 mb-6">
+            <View className="rounded-2xl py-4 items-center border border-red-200 bg-red-50">
+              {deleteWarehouseMutation.isPending ? (
+                <ActivityIndicator color="#B91C1C" />
+              ) : (
+                <Text className="text-base font-semibold text-red-700">
+                  Delete warehouse
+                </Text>
+              )}
+            </View>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>

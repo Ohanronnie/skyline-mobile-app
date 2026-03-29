@@ -29,6 +29,7 @@ import {
     useUpdateCustomer,
 } from "@/hooks/useShipments";
 import { CustomerLocation, CustomerType, Partner } from "@/lib/api";
+import { validateAndFormatPhoneNumber } from "@/lib/phone";
 import { z } from "zod";
 
 interface AddCustomerModalProps {
@@ -54,7 +55,12 @@ const customerSchema = z.object({
   name: z.string().min(1, "Customer name is required"),
   type: z.nativeEnum(CustomerType, { message: "Invalid customer type" }),
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
-  phone: z.string().optional(),
+  phone: z.string().optional().refine((val) => {
+    if (!val) return true;
+    return !!validateAndFormatPhoneNumber(val);
+  }, {
+    message: "Invalid phone number (use + prefix for international numbers)"
+  }),
   address: z.string().optional(),
   location: z.nativeEnum(CustomerLocation, { message: "Invalid location" }),
   paymentTerms: z.string().optional(),
@@ -135,7 +141,7 @@ export function AddCustomerModal({
       name: name.trim(),
       type: type as CustomerType,
       email: email?.trim() || undefined,
-      phone: phone?.trim() || undefined,
+      phone: phone ? (validateAndFormatPhoneNumber(phone) || phone) : undefined,
       address: address?.trim() || undefined,
       location: location as CustomerLocation,
       paymentTerms: paymentTerms?.trim() || undefined,
@@ -384,7 +390,7 @@ export function AddCustomerModal({
               <ScrollView
                 className="flex-1"
                 showsVerticalScrollIndicator={false}
-                contentContainerClassName="pb-6"
+                contentContainerClassName="pb-40"
               >
                 <View onStartShouldSetResponder={() => true}>
                   {/* Customer Name */}
@@ -524,16 +530,16 @@ export function AddCustomerModal({
                     <Input
                       variant="outline"
                       size="lg"
-                      className="bg-white rounded-xl border-gray-200"
+                      className="bg-white rounded-xl h-20 border-gray-200"
                     >
                       <InputField
                         placeholder="Enter address"
                         value={address}
                         onChangeText={setAddress}
                         multiline
-                        numberOfLines={3}
+                        numberOfLines={2}
                         textAlignVertical="top"
-                        className="text-gray-900 min-h-[60px] py-2"
+                        className="text-gray-900  min-h-20 py-2"
                       />
                     </Input>
                   </View>
@@ -546,7 +552,7 @@ export function AddCustomerModal({
                     <Input
                       variant="outline"
                       size="lg"
-                      className="bg-white rounded-xl border-gray-200"
+                      className="bg-white h-32 rounded-xl border-gray-200"
                     >
                       <InputField
                         placeholder="Add notes"
@@ -555,7 +561,7 @@ export function AddCustomerModal({
                         multiline
                         numberOfLines={4}
                         textAlignVertical="top"
-                        className="text-gray-900 min-h-[80px] py-2"
+                        className="text-gray-900 min-h-32 py-2"
                       />
                     </Input>
                   </View>
@@ -587,43 +593,43 @@ export function AddCustomerModal({
                         selectedValue={selectedPartner}
                         onValueChange={setSelectedPartner}
                         placeholder="Select partner"
-                        direction="up"
+                        direction="down"
                       />
                     </View>
                   )}
                 </View>
-
-                {/* Actions */}
-                <View className="flex-row gap-4 mb-6">
-                  <TouchableOpacity
-                    onPress={handleClose}
-                    className="flex-1 py-4 rounded-xl border border-gray-300 items-center"
-                  >
-                    <Text className="text-gray-700 font-bold text-lg">
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={
-                      createMutation.isPending || updateMutation.isPending
-                    }
-                    className={`flex-1 py-4 rounded-xl items-center flex-row justify-center ${
-                      createMutation.isPending || updateMutation.isPending
-                        ? "bg-gray-400"
-                        : "bg-primary-blue"
-                    }`}
-                  >
-                    {createMutation.isPending || updateMutation.isPending ? (
-                      <ActivityIndicator color="white" size="small" />
-                    ) : (
-                      <Text className="text-white font-bold text-lg ml-2">
-                        {initialData ? "Update" : "Save"}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
               </ScrollView>
+
+              {/* Actions */}
+              <View className="flex-row gap-4 py-4 bg-white border-t border-gray-100">
+                <TouchableOpacity
+                  onPress={handleClose}
+                  className="flex-1 py-4 rounded-xl border border-gray-300 items-center"
+                >
+                  <Text className="text-gray-700 font-bold text-lg">
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSubmit}
+                  disabled={
+                    createMutation.isPending || updateMutation.isPending
+                  }
+                  className={`flex-1 py-4 rounded-xl items-center flex-row justify-center ${
+                    createMutation.isPending || updateMutation.isPending
+                      ? "bg-gray-400"
+                      : "bg-primary-blue"
+                  }`}
+                >
+                  {createMutation.isPending || updateMutation.isPending ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <Text className="text-white font-bold text-lg ml-2">
+                      {initialData ? "Update" : "Save"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </Box>
         </TouchableWithoutFeedback>

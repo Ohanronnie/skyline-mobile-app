@@ -539,7 +539,7 @@ export function UploadDocumentModal({
                     <Input
                       variant="outline"
                       size="lg"
-                      className="bg-white rounded-xl border-gray-200"
+                      className="bg-white rounded-xl border-gray-200 h-[100px]"
                     >
                       <InputField
                         placeholder="Enter description (optional)"

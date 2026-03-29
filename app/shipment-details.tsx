@@ -7,7 +7,7 @@ import { Container, Warehouse } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ShipmentDetails() {
@@ -18,6 +18,8 @@ export default function ShipmentDetails() {
     data: shipment,
     isLoading: isLoadingShipment,
     error: shipmentError,
+    refetch,
+    isRefetching,
   } = useShipmentDetails(shipmentId);
 
   const { data: containersData } = useContainers();
@@ -119,6 +121,14 @@ export default function ShipmentDetails() {
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
+        }
       >
         <View className="px-4 pt-4">
           {/* Basic information */}

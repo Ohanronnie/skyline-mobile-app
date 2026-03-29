@@ -21,7 +21,7 @@ export default function Staffs() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: users = [], isLoading, refetch } = useUsers();
+  const { data: users = [], isLoading, refetch, isRefetching } = useUsers();
   const deleteMutation = useDeleteUser();
 
   const filteredUsers = useMemo(() => {
@@ -82,7 +82,12 @@ export default function Staffs() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refetch} />
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
         }>
         <View className="px-4 pt-4">
           {/* Search */}

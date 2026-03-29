@@ -24,6 +24,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { validateAndFormatPhoneNumber } from "@/lib/phone";
 import { z } from "zod";
 
 // Validation schema
@@ -34,7 +35,12 @@ const warehouseSchema = z.object({
   }),
   address: z.string().optional(),
   contactPerson: z.string().optional(),
-  phone: z.string().optional(),
+  phone: z.string().optional().refine((val) => {
+    if (!val) return true;
+    return !!validateAndFormatPhoneNumber(val);
+  }, {
+    message: "Invalid phone number"
+  }),
   capacity: z.number().int().positive().optional(),
   currentUtilization: z.number().int().min(0).optional(),
 });
@@ -122,7 +128,7 @@ export function AddWarehouseModal({
       location: location as WarehouseLocation,
       address: address || undefined,
       contactPerson: contactPerson || undefined,
-      phone: phone || undefined,
+      phone: phone ? (validateAndFormatPhoneNumber(phone) || phone) : undefined,
       capacity: capacity ? parseInt(capacity, 10) : undefined,
       currentUtilization: currentUtilization
         ? parseInt(currentUtilization, 10)

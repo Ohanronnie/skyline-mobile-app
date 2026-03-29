@@ -3,7 +3,7 @@ import { RecentActivityItem } from "@/components/partners/RecentActivityItem";
 import { StatCard } from "@/components/partners/StatCard";
 import { Box } from "@/components/ui/box";
 import { useRequireAuth } from "@/contexts/AuthContext";
-import { getPartnerHomeStats } from "@/lib/api";
+import { getPartnerHomeStats, ShipmentStatus } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
@@ -24,8 +24,7 @@ export default function PartnersHomeScreen() {
     queryKey: ["partner-home"],
     queryFn: getPartnerHomeStats,
   });
-  console.log(JSON.stringify(error, null, 2));
-  const partner = data?.partner;
+  const partner = data?.partner || (data as any)?.totals;
   const recentShipments = data?.recentActivity?.recentShipments ?? [];
 
   return (
@@ -36,7 +35,7 @@ export default function PartnersHomeScreen() {
       {/* Navbar */}
       <View className="flex-row items-center justify-between px-6 py-4 bg-white border-b border-gray-100">
         <Text className="text-lg font-bold text-[#1A293B]">
-          {partner?.name || "Partner"}
+          {data?.partner?.name || "Partner Overview"}
         </Text>
         <Pressable
           onPress={() => router.push("/(partners)/notification")}
@@ -77,19 +76,19 @@ export default function PartnersHomeScreen() {
             {
               id: "shipments",
               icon: require("@/assets/images/cargo-icon.png"),
-              count: partner?.shipmentCount ?? 0,
+              count: partner?.shipmentCount ?? partner?.shipments ?? 0,
               label: "Total shipments",
             },
             {
               id: "customers",
               icon: require("@/assets/images/people.png"),
-              count: partner?.customerCount ?? 0,
+              count: partner?.customerCount ?? partner?.customers ?? 0,
               label: "Total customers",
             },
             {
               id: "containers",
               icon: require("@/assets/images/container-icon.png"),
-              count: partner?.containerCount ?? 0,
+              count: partner?.containerCount ?? partner?.containers ?? 0,
               label: "Containers",
             },
           ].map((stat) => (
@@ -101,6 +100,7 @@ export default function PartnersHomeScreen() {
             />
           ))}
         </View>
+
 
         {/* Recent Activity Section */}
         <View className="px-6 mt-8">
@@ -128,7 +128,7 @@ export default function PartnersHomeScreen() {
                       ? item.customerId?.name
                       : item.customerId || "Customer"
                   }
-                  status={item.status as any}
+                  status={item.status as ShipmentStatus}
                   isLast={index === recentShipments.length - 1}
                 />
               ))

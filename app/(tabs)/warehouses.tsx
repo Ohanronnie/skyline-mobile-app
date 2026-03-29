@@ -1,18 +1,20 @@
 import { AddWarehouseModal } from "@/components/add-warehouse-modal";
 import { Input, InputField, InputSlot } from "@/components/ui/input";
+import { useDeleteWarehouse } from "@/hooks/useShipments";
 import { getWarehouses, Warehouse } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -23,14 +25,44 @@ export default function Warehouses() {
     null
   );
 
+  const deleteWarehouseMutation = useDeleteWarehouse();
+
   const {
     data: warehouses = [],
     isLoading,
     refetch,
+    isRefetching,
   } = useQuery({
     queryKey: ["warehouses"],
     queryFn: getWarehouses,
   });
+
+  const handleDeleteWarehouse = (warehouse: Warehouse) => {
+    Alert.alert(
+      "Delete warehouse",
+      `Are you sure you want to delete "${warehouse.name}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            deleteWarehouseMutation.mutate(warehouse._id, {
+              onError: (error: unknown) => {
+                const err = error as { response?: { data?: { message?: string } }; message?: string };
+                Alert.alert(
+                  "Error",
+                  err?.response?.data?.message ||
+                    err?.message ||
+                    "Failed to delete warehouse",
+                );
+              },
+            });
+          },
+        },
+      ],
+    );
+  };
 
   const warehouseStats = useMemo(() => {
     const total = warehouses.length;
@@ -85,7 +117,12 @@ export default function Warehouses() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refetch} />
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
         }>
         <View className="px-4 pt-6">
           {/* Stats */}
@@ -197,17 +234,17 @@ export default function Warehouses() {
                   </View>
 
                   {/* Action Buttons */}
-                  <View className="flex-row gap-3">
+                  <View className="flex-row gap-2">
                     <Pressable
                       onPress={() =>
                         router.push(
-                          `/warehouse-details?id=${warehouse._id}`
+                          `/warehouse-details?id=${warehouse._id}`,
                         )
                       }
                       android_ripple={{ color: "rgba(0,0,0,0.1)" }}
                       className="flex-1">
                       <View className="bg-[#1A293B] rounded-xl py-3 items-center">
-                        <Text className="text-sm font-semibold text-white">
+                        <Text className="text-xs font-semibold text-white">
                           View
                         </Text>
                       </View>
@@ -220,8 +257,19 @@ export default function Warehouses() {
                       android_ripple={{ color: "rgba(0,0,0,0.1)" }}
                       className="flex-1">
                       <View className="bg-[#F3F4F6] rounded-xl py-3 items-center border border-gray-200">
-                        <Text className="text-sm font-semibold text-[#1A293B]">
+                        <Text className="text-xs font-semibold text-[#1A293B]">
                           Edit
+                        </Text>
+                      </View>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleDeleteWarehouse(warehouse)}
+                      disabled={deleteWarehouseMutation.isPending}
+                      android_ripple={{ color: "rgba(0,0,0,0.06)" }}
+                      className="flex-1">
+                      <View className="bg-red-50 rounded-xl py-3 items-center border border-red-200">
+                        <Text className="text-xs font-semibold text-red-700">
+                          Delete
                         </Text>
                       </View>
                     </Pressable>

@@ -14,6 +14,7 @@ import {
   deleteCustomer,
   deleteShipment,
   deleteUser,
+  deleteWarehouse,
   getCargo,
   getContainerDetails,
   getContainers,
@@ -29,6 +30,9 @@ import {
   getTrackingSummary,
   getUsers,
   getWarehouses,
+  PaginatedResponse,
+  Partner,
+  Customer,
   updateContainer,
   updateCustomer,
   UpdatePartnerDto,
@@ -48,13 +52,33 @@ import {
 } from "@tanstack/react-query";
 
 export const useShipments = (
+  search?: string,
   options?: Partial<UseInfiniteQueryOptions<any, any, any, any>>,
 ) => {
   return useInfiniteQuery({
-    queryKey: ["shipments"],
-    queryFn: ({ pageParam = 1 }) => getShipments(pageParam as number),
-    getNextPageParam: (lastPage) =>
-      lastPage.page < lastPage.lastPage ? lastPage.page + 1 : undefined,
+    queryKey: ["shipments", search],
+    queryFn: ({ pageParam = 1 }) => getShipments(pageParam as number, 10, search),
+    getNextPageParam: (lastPageData) => {
+      const totalP = lastPageData?.totalPages;
+      return lastPageData?.page < totalP ? lastPageData.page + 1 : undefined;
+    },
+    initialPageParam: 1,
+    ...options,
+  });
+};
+
+export const usePartnerShipments = (
+  search?: string,
+  options?: Partial<UseInfiniteQueryOptions<any, any, any, any>>,
+) => {
+  return useInfiniteQuery({
+    queryKey: ["partner-shipments", search],
+    queryFn: ({ pageParam = 1 }) =>
+      getPartnerShipments(pageParam as number, 10, search),
+    getNextPageParam: (lastPageData) => {
+      const totalP = lastPageData?.totalPages;
+      return lastPageData?.page < totalP ? lastPageData.page + 1 : undefined;
+    },
     initialPageParam: 1,
     ...options,
   });
@@ -73,15 +97,62 @@ export const useCustomers = (
 ) => {
   return useQuery({
     queryKey: ["customers"],
-    queryFn: getCustomers,
+    queryFn: () => getCustomers().then(res => (Array.isArray(res) ? res : res.data || [])).catch(() => []),
     ...options,
   });
 };
 
-export const usePartnerCustomers = () => {
+export const useInfiniteCustomers = (search?: string) => {
+  return useInfiniteQuery({
+    queryKey: ["customers-infinite", search],
+    queryFn: ({ pageParam = 1 }) =>
+      getCustomers(pageParam as number, 20, search).then((res) => {
+        if (Array.isArray(res)) {
+          return {
+            data: res,
+            total: res.length,
+            page: 1,
+            limit: res.length,
+            totalPages: 1,
+          };
+        }
+        return res as PaginatedResponse<Customer>;
+      }),
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    initialPageParam: 1,
+  });
+};
+
+export const usePartnerCustomers = (
+  options?: Partial<UseQueryOptions<any, any, any, any>>,
+) => {
   return useQuery({
     queryKey: ["partner-customers"],
-    queryFn: getPartnerCustomers,
+    queryFn: () => getPartnerCustomers().then(res => (Array.isArray(res) ? res : res.data || [])).catch(() => []),
+    ...options,
+  });
+};
+
+export const useInfinitePartnerCustomers = (search?: string) => {
+  return useInfiniteQuery({
+    queryKey: ["partner-customers-infinite", search],
+    queryFn: ({ pageParam = 1 }) =>
+      getPartnerCustomers(pageParam as number, 20, search).then((res) => {
+        if (Array.isArray(res)) {
+          return {
+            data: res,
+            total: res.length,
+            page: 1,
+            limit: res.length,
+            totalPages: 1,
+          };
+        }
+        return res as PaginatedResponse<Customer>;
+      }),
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    initialPageParam: 1,
   });
 };
 
@@ -92,7 +163,9 @@ export const useCreateCustomer = () => {
     mutationFn: (data: any) => createCustomer(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-infinite"] });
       queryClient.invalidateQueries({ queryKey: ["partner-customers"] });
+      queryClient.invalidateQueries({ queryKey: ["partner-customers-infinite"] });
     },
   });
 };
@@ -105,7 +178,9 @@ export const useUpdateCustomer = () => {
       updateCustomer(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-infinite"] });
       queryClient.invalidateQueries({ queryKey: ["partner-customers"] });
+      queryClient.invalidateQueries({ queryKey: ["partner-customers-infinite"] });
     },
   });
 };
@@ -168,14 +243,30 @@ export const useUpdateWarehouse = () => {
   });
 };
 
+export const useDeleteWarehouse = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => deleteWarehouse(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      queryClient.removeQueries({ queryKey: ["warehouse", id] });
+    },
+  });
+};
+
 export const useContainers = (
+  search?: string,
   options?: Partial<UseInfiniteQueryOptions<any, any, any, any>>,
 ) => {
   return useInfiniteQuery({
-    queryKey: ["containers"],
-    queryFn: ({ pageParam = 1 }) => getContainers(pageParam as number),
-    getNextPageParam: (lastPage) =>
-      lastPage?.page < lastPage?.lastPage ? lastPage.page + 1 : undefined,
+    queryKey: ["containers", search],
+    queryFn: ({ pageParam = 1 }) =>
+      getContainers(pageParam as number, 10, true, search),
+    getNextPageParam: (lastPageData: any) => {
+      const totalP = lastPageData?.totalPages;
+      return lastPageData?.page < totalP ? lastPageData.page + 1 : undefined;
+    },
     initialPageParam: 1,
     ...options,
   });
@@ -227,13 +318,20 @@ export const useCargo = () => {
   });
 };
 
-export const usePartnerContainers = () => {
+export const usePartnerContainers = (
+  search?: string,
+  options?: Partial<UseInfiniteQueryOptions<any, any, any, any>>,
+) => {
   return useInfiniteQuery({
-    queryKey: ["partner-containers"],
-    queryFn: ({ pageParam = 1 }) => getPartnerContainers(pageParam as number),
-    getNextPageParam: (lastPage) =>
-      lastPage.page < lastPage.lastPage ? lastPage.page + 1 : undefined,
+    queryKey: ["partner-containers", search],
+    queryFn: ({ pageParam = 1 }) =>
+      getPartnerContainers(pageParam as number, 10, search),
+    getNextPageParam: (lastPageData: any) => {
+      const totalP = lastPageData?.totalPages;
+      return lastPageData?.page < totalP ? lastPageData.page + 1 : undefined;
+    },
     initialPageParam: 1,
+    ...options,
   });
 };
 
@@ -242,8 +340,30 @@ export const usePartners = (
 ) => {
   return useQuery({
     queryKey: ["partners"],
-    queryFn: getPartners,
+    queryFn: () => getPartners().then(res => (Array.isArray(res) ? res : (res as any).data || [])),
     ...options,
+  });
+};
+
+export const useInfinitePartners = (search?: string) => {
+  return useInfiniteQuery({
+    queryKey: ["partners-infinite", search],
+    queryFn: ({ pageParam = 1 }) =>
+      getPartners(pageParam as number, 20, search).then((res) => {
+        if (Array.isArray(res)) {
+          return {
+            data: res,
+            total: res.length,
+            page: 1,
+            limit: res.length,
+            totalPages: 1,
+          };
+        }
+        return res as PaginatedResponse<Partner>;
+      }),
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    initialPageParam: 1,
   });
 };
 
@@ -278,15 +398,6 @@ export const useUpdateSMSTemplate = () => {
   });
 };
 
-export const usePartnerShipments = () => {
-  return useInfiniteQuery({
-    queryKey: ["partner-shipments"],
-    queryFn: ({ pageParam = 1 }) => getPartnerShipments(pageParam as number),
-    getNextPageParam: (lastPage) =>
-      lastPage.page < lastPage.lastPage ? lastPage.page + 1 : undefined,
-    initialPageParam: 1,
-  });
-};
 
 export const useCreatePartner = () => {
   const queryClient = useQueryClient();
@@ -343,8 +454,11 @@ export const useAssignCustomerToShipment = () => {
     }) => assignCustomerToShipment(shipmentId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      queryClient.invalidateQueries({ queryKey: ["partner-shipments"] });
+      queryClient.invalidateQueries({ queryKey: ["partner-home"] });
       queryClient.invalidateQueries({ queryKey: ["shipment"] });
     },
+
   });
 };
 
@@ -361,8 +475,12 @@ export const useAssignCustomerToContainer = () => {
     }) => assignCustomerToContainer(containerId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["containers"] });
+      queryClient.invalidateQueries({ queryKey: ["partner-containers"] });
+      queryClient.invalidateQueries({ queryKey: ["partner-home"] });
+      queryClient.invalidateQueries({ queryKey: ["all-containers"] });
       queryClient.invalidateQueries({ queryKey: ["container"] });
     },
+
   });
 };
 
@@ -373,6 +491,7 @@ export const useCreateContainer = () => {
     mutationFn: (data: any) => createContainer(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["containers"] });
+      queryClient.invalidateQueries({ queryKey: ["all-containers"] });
     },
   });
 };
@@ -385,6 +504,7 @@ export const useUpdateContainer = () => {
       updateContainer(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["containers"] });
+      queryClient.invalidateQueries({ queryKey: ["all-containers"] });
     },
   });
 };
@@ -396,6 +516,7 @@ export const useDeleteContainer = () => {
     mutationFn: (id: string) => deleteContainer(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["containers"] });
+      queryClient.invalidateQueries({ queryKey: ["all-containers"] });
     },
   });
 };

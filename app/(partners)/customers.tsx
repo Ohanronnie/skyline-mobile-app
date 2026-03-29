@@ -1,18 +1,19 @@
 import { AddCustomerModal } from "@/components/add-customer-modal";
 import { PartnerCustomerCard } from "@/components/partners/PartnerCustomerCard";
 import { Box } from "@/components/ui/box";
+import { Input, InputField, InputSlot } from "@/components/ui/input";
 import { useAuth, useRequireAuth } from "@/contexts/AuthContext";
-import { useDeleteCustomer, usePartnerCustomers } from "@/hooks/useShipments";
+import { useDeleteCustomer, useInfinitePartnerCustomers } from "@/hooks/useShipments";
 import { Customer } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   Pressable,
-  ScrollView,
   Text,
   TouchableOpacity,
   View,
@@ -22,7 +23,26 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function PartnersCustomersScreen() {
   useRequireAuth();
   const { user } = useAuth();
-  const { data: customers = [], isLoading, error } = usePartnerCustomers();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const {
+    data: customersData,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfinitePartnerCustomers(debouncedSearch);
+
   const deleteMutation = useDeleteCustomer();
 
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
@@ -30,8 +50,11 @@ export default function PartnersCustomersScreen() {
     null
   );
 
+  const customers = useMemo(() => {
+    return customersData?.pages.flatMap((page) => page.data) ?? [];
+  }, [customersData]);
+
   const handleEditCustomer = (customer: Customer) => {
-    console.log("[PartnersCustomers] Editing customer:", customer);
     setSelectedCustomer(customer);
     setIsAddModalVisible(true);
   };
@@ -65,6 +88,23 @@ export default function PartnersCustomersScreen() {
     setSelectedCustomer(null);
   };
 
+  const renderItem = ({ item }: { item: Customer }) => (
+    <PartnerCustomerCard
+      name={item.name}
+      shipmentCount={0}
+      phone={item.phone || "N/A"}
+      email={item.email || "N/A"}
+      onViewDetails={() =>
+        router.push({
+          pathname: "/(partners)/customer-details",
+          params: { customerId: item._id, name: item.name },
+        })
+      }
+      onEdit={() => handleEditCustomer(item)}
+      onDelete={() => handleDeleteCustomer(item)}
+    />
+  );
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Navbar */}
@@ -85,60 +125,78 @@ export default function PartnersCustomersScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        contentContainerClassName="pb-24 px-6 pt-6"
-        showsVerticalScrollIndicator={false}>
-        {/* Header with Add Button */}
-        <View className="flex-row justify-between items-center mb-6">
-          <Text className="text-2xl font-bold text-[#1A293B]">Customers</Text>
-          <TouchableOpacity
-            onPress={() => setIsAddModalVisible(true)}
-            className="bg-[#1A293B] w-10 h-10 rounded-lg items-center justify-center">
-            <Ionicons name="add" size={24} color="white" />
-          </TouchableOpacity>
-        </View>
+      <FlatList
+        data={customers}
+        renderItem={renderItem}
+        keyExtractor={(item) => item._id}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={
+          <View className="px-6 pt-6">
+            {/* Search Input */}
+            <View className="mb-4">
+              <Input
+                variant="outline"
+                size="lg"
+                className="bg-white rounded-xl border-gray-200"
+              >
+                <InputSlot className="pl-3">
+                  <Ionicons name="search" size={20} color="#999" />
+                </InputSlot>
+                <InputField
+                  placeholder="Search customers"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  className="text-gray-900"
+                />
+              </Input>
+            </View>
 
-        {/* Customers List */}
-        <View>
-          {isLoading ? (
-            <View className="py-8 items-center">
-              <ActivityIndicator size="large" color="#1A293B" />
-              <Text className="text-gray-500 mt-4">Loading customers...</Text>
+            {/* Header with Add Button */}
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-2xl font-bold text-[#1A293B]">Customers</Text>
+              <TouchableOpacity
+                onPress={() => setIsAddModalVisible(true)}
+                className="bg-[#1A293B] w-10 h-10 rounded-lg items-center justify-center">
+                <Ionicons name="add" size={24} color="white" />
+              </TouchableOpacity>
             </View>
-          ) : error ? (
-            <View className="py-8 items-center">
-              <Text className="text-red-500">Failed to load customers</Text>
-              <Text className="text-red-400 text-sm mt-2">
-                {(error as any)?.response?.data?.message ||
-                  (error as Error)?.message ||
-                  "Unknown error"}
-              </Text>
-            </View>
-          ) : customers.length === 0 ? (
-            <View className="py-8 items-center">
-              <Text className="text-gray-500">No customers found</Text>
+
+            {isLoading && customers.length === 0 && (
+              <View className="py-8 items-center">
+                <ActivityIndicator size="large" color="#1A293B" />
+                <Text className="text-gray-500 mt-4">Loading customers...</Text>
+              </View>
+            )}
+
+            {error && (
+              <View className="py-8 items-center">
+                <Text className="text-red-500">Failed to load customers</Text>
+              </View>
+            )}
+
+            {!isLoading && customers.length === 0 && (
+              <View className="py-8 items-center">
+                <Text className="text-gray-500">No customers found</Text>
+              </View>
+            )}
+          </View>
+        }
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <View className="py-4">
+              <ActivityIndicator size="small" color="#1A293B" />
             </View>
           ) : (
-            customers.map((customer: Customer) => (
-              <PartnerCustomerCard
-                key={customer._id}
-                name={customer.name}
-                shipmentCount={0} // TODO: Get shipment count from API if available
-                phone={customer.phone || "N/A"}
-                email={customer.email || "N/A"}
-                onViewDetails={() =>
-                  router.push({
-                    pathname: "/(partners)/customer-details",
-                    params: { customerId: customer._id, name: customer.name },
-                  })
-                }
-                onEdit={() => handleEditCustomer(customer)}
-                onDelete={() => handleDeleteCustomer(customer)}
-              />
-            ))
-          )}
-        </View>
-      </ScrollView>
+            <View className="h-24" />
+          )
+        }
+        showsVerticalScrollIndicator={false}
+      />
 
       <AddCustomerModal
         visible={isAddModalVisible}

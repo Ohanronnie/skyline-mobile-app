@@ -265,7 +265,7 @@ export function AddStaffModal({ visible, onClose }: AddStaffModalProps) {
                           setOrganization(value as UserOrganization)
                         }
                         placeholder="Select organization"
-                        direction="up"
+                        direction="down"
                         variant="filled"
                       />
                       {errors.organization && (
@@ -283,7 +283,7 @@ export function AddStaffModal({ visible, onClose }: AddStaffModalProps) {
                         selectedValue={role}
                         onValueChange={(value) => setRole(value as UserRole)}
                         placeholder="Select role"
-                        direction="up"
+                        direction="down"
                         variant="filled"
                       />
                       {errors.role && (

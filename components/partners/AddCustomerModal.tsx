@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 
 import { useEffect } from 'react';
+import { validateAndFormatPhoneNumber } from '@/lib/phone';
+import { Alert } from 'react-native';
 
 interface AddCustomerModalProps {
   isVisible: boolean;
@@ -198,7 +200,17 @@ export const AddCustomerModal = ({
                     <Text className="text-gray-700 font-bold text-lg">Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => onSave(formData)}
+                    onPress={() => {
+                      if (formData.phone && !validateAndFormatPhoneNumber(formData.phone)) {
+                        Alert.alert("Invalid Phone", "Please enter a valid phone number. Use + prefix for international numbers.");
+                        return;
+                      }
+                      const finalData = {
+                        ...formData,
+                        phone: formData.phone ? (validateAndFormatPhoneNumber(formData.phone) || formData.phone) : formData.phone
+                      };
+                      onSave(finalData);
+                    }}
                     className="flex-1 py-4 rounded-xl bg-primary-blue items-center flex-row justify-center">
                     <Ionicons
                       name={initialData ? 'save' : 'add'}

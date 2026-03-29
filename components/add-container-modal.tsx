@@ -1,4 +1,5 @@
 import { CustomSelect } from "@/components/custom-select";
+import { DatePickerField } from "@/components/date-picker-field";
 import { Box } from "@/components/ui/box";
 import { Input, InputField } from "@/components/ui/input";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +27,8 @@ import {
 import {
   useCreateContainer,
   useCustomers,
+  useInfiniteCustomers,
+  useInfinitePartners,
   usePartners,
   useUpdateContainer,
 } from "@/hooks/useShipments";
@@ -92,12 +95,95 @@ export function AddContainerModal({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: customers } = useCustomers();
+  // Cache for customer/partner names to avoid "Unknown" when search is cleared
+  const [resolvedCustomers, setResolvedCustomers] = useState<Record<string, Customer>>({});
+  const [resolvedPartners, setResolvedPartners] = useState<Record<string, Partner>>({});
+
   const { data: partners } = usePartners();
+
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
+  const [debouncedPartnerSearch, setDebouncedPartnerSearch] = useState("");
+
+  // Debounce customer search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCustomerSearch(customerSearch);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [customerSearch]);
+
+  // Debounce partner search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPartnerSearch(partnerSearch);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [partnerSearch]);
+
+  const {
+    data: infiniteCustomers,
+    fetchNextPage: fetchNextCustomers,
+    hasNextPage: hasMoreCustomers,
+    isFetchingNextPage: isFetchingMoreCustomers,
+  } = useInfiniteCustomers(debouncedCustomerSearch);
+
+  const {
+    data: infinitePartners,
+    fetchNextPage: fetchNextPartners,
+    hasNextPage: hasMorePartners,
+    isFetchingNextPage: isFetchingMorePartners,
+  } = useInfinitePartners(debouncedPartnerSearch);
+
+  const customers = React.useMemo(() => {
+    return infiniteCustomers?.pages.flatMap((page) => page.data) || [];
+  }, [infiniteCustomers]);
+
+  const partnersList = React.useMemo(() => {
+    return infinitePartners?.pages.flatMap((page) => page.data) || [];
+  }, [infinitePartners]);
 
   const createMutation = useCreateContainer();
   const updateMutation = useUpdateContainer();
   const toast = useToast();
+
+  // Update resolved customers when list data changes
+  useEffect(() => {
+    if (customers.length > 0) {
+      setResolvedCustomers((prev) => {
+        const next = { ...prev };
+        customers.forEach((c) => {
+          if (c?._id) next[c._id] = c;
+        });
+        return next;
+      });
+    }
+  }, [customers]);
+
+  // Update resolved partners when list data changes
+  useEffect(() => {
+    if (partnersList.length > 0) {
+      setResolvedPartners((prev) => {
+        const next = { ...prev };
+        partnersList.forEach((p) => {
+          if (p?._id) next[p._id] = p;
+        });
+        return next;
+      });
+    }
+  }, [partnersList]);
+
+  // Also update from the static partners list if available
+  useEffect(() => {
+    if (partners && partners.length > 0) {
+      setResolvedPartners((prev) => {
+        const next = { ...prev };
+        partners.forEach((p: Partner) => {
+          if (p?._id) next[p?._id] = p;
+        });
+        return next;
+      });
+    }
+  }, [partners]);
 
   useEffect(() => {
     if (initialData) {
@@ -123,23 +209,52 @@ export function AddContainerModal({
       setCurrentLocation(initialData.currentLocation || "");
 
       // Handle multiple IDs from initialData, falling back to legacy single ID if needed
-      const getIds = (ids?: any[], singleId?: any) => {
+      const getIds = (ids?: any[], singleId?: any, type: "customer" | "partner" = "customer") => {
+        const foundObjects: any[] = [];
+        const resultIds: string[] = [];
+
         if (ids && ids.length > 0) {
-          return ids.map((item) =>
-            typeof item === "string" ? item : item._id,
-          );
+          ids.forEach((item) => {
+            if (typeof item === "string") {
+              resultIds.push(item);
+            } else if (item?._id) {
+              resultIds.push(item._id);
+              foundObjects.push(item);
+            }
+          });
+        } else if (singleId) {
+          if (typeof singleId === "string") {
+            resultIds.push(singleId);
+          } else if (singleId?._id) {
+            resultIds.push(singleId._id);
+            foundObjects.push(singleId);
+          }
         }
-        if (singleId) {
-          return [typeof singleId === "string" ? singleId : singleId._id];
+
+        if (foundObjects.length > 0) {
+          if (type === "customer") {
+            setResolvedCustomers((prev) => {
+              const next = { ...prev };
+              foundObjects.forEach((obj) => (next[obj._id] = obj));
+              return next;
+            });
+          } else {
+            setResolvedPartners((prev) => {
+              const next = { ...prev };
+              foundObjects.forEach((obj) => (next[obj._id] = obj));
+              return next;
+            });
+          }
         }
-        return [];
+
+        return resultIds;
       };
 
       setSelectedCustomers(
-        getIds(initialData.customerIds, (initialData as any).customerId),
+        getIds(initialData.customerIds, (initialData as any).customerId, "customer"),
       );
       setSelectedPartners(
-        getIds(initialData.partnerIds, (initialData as any).partnerId),
+        getIds(initialData.partnerIds, (initialData as any).partnerId, "partner"),
       );
       setErrors({});
     } else {
@@ -276,27 +391,9 @@ export function AddContainerModal({
     }
   };
 
-  // Filter customers
-  const filteredCustomers =
-    customers?.filter((c: Customer) =>
-      c.name.toLowerCase().includes(customerSearch.toLowerCase()),
-    ) || [];
-
-  const customerOptions = filteredCustomers.map((c: Customer) => ({
-    label: c.name,
-    value: c._id,
-  }));
-
-  // Filter partners
-  const filteredPartners =
-    partners?.filter((p: Partner) =>
-      p.name.toLowerCase().includes(partnerSearch.toLowerCase()),
-    ) || [];
-
-  const partnerOptions = filteredPartners.map((p: Partner) => ({
-    label: p.name,
-    value: p._id,
-  }));
+  // Customer and Partner lists from infinite queries (already filtered by search via the hook)
+  const displayCustomers = (customers || []).filter((c: Customer) => c && c._id && !selectedCustomers.includes(c._id));
+  const displayPartners = (partnersList as Partner[] || []).filter((p: Partner) => p && p._id && !selectedPartners.includes(p._id));
 
   const statusOptions = Object.values(ContainerStatus).map((s) => ({
     label: s.replace(/_/g, " ").toUpperCase(),
@@ -406,7 +503,7 @@ export function AddContainerModal({
                         selectedValue={status}
                         onValueChange={setStatus}
                         placeholder="Select status"
-                        direction="up"
+                        direction="down"
                       />
                     </View>
                     <View className="flex-1">
@@ -430,40 +527,26 @@ export function AddContainerModal({
 
                   {/* Dates */}
                   <View className="mb-4">
-                    <Text className="text-gray-700 font-medium mb-2">
-                      Dates (YYYY-MM-DD)
-                    </Text>
-                    <View className="flex-row gap-3">
-                      <View className="flex-1">
-                        <Input
-                          variant="outline"
-                          size="lg"
-                          className="bg-white rounded-xl border-gray-200"
-                        >
-                          <InputField
-                            placeholder="Departure"
-                            value={departureDate}
-                            onChangeText={setDepartureDate}
-                            className="text-gray-900"
-                          />
-                        </Input>
-                      </View>
-                      <View className="flex-1">
-                        <Input
-                          variant="outline"
-                          size="lg"
-                          className="bg-white rounded-xl border-gray-200"
-                        >
-                          <InputField
-                            placeholder="ETA Ghana"
-                            value={etaGhana}
-                            onChangeText={setEtaGhana}
-                            className="text-gray-900"
-                          />
-                        </Input>
-                      </View>
-                    </View>
+                    <DatePickerField
+                      label="Departure Date"
+                      value={departureDate}
+                      onChange={setDepartureDate}
+                      error={errors.departureDate}
+                    />
+                    <DatePickerField
+                      label="ETA Ghana"
+                      value={etaGhana}
+                      onChange={setEtaGhana}
+                      error={errors.etaGhana}
+                    />
                   </View>
+
+                  <DatePickerField
+                    label="Arrival Date"
+                    value={arrivalDate}
+                    onChange={setArrivalDate}
+                    error={errors.arrivalDate}
+                  />
 
                   {/* Customer / Partner Selection */}
                   <View className="mb-6 bg-gray-50 p-4 rounded-xl">
@@ -494,50 +577,63 @@ export function AddContainerModal({
                       </Input>
 
                       {/* Customer Dropdown List */}
-                      {filteredCustomers.filter(
-                        (c: Customer) => !selectedCustomers.includes(c._id),
-                      ).length > 0 &&
+                      {displayCustomers.length > 0 &&
                         selectedCustomers.length < 6 && (
                           <ScrollView
-                            style={{ maxHeight: 150 }}
+                            style={{ maxHeight: 200 }}
                             className="bg-white rounded-xl border border-gray-200 mb-2 z-50"
                             showsVerticalScrollIndicator={true}
                           >
-                            {filteredCustomers
-                              .filter(
-                                (c: Customer) =>
-                                  !selectedCustomers.includes(c._id),
-                              )
-                              .map((customer: Customer) => (
-                                <TouchableOpacity
-                                  key={customer._id}
-                                  onPress={() => {
-                                    if (
-                                      !selectedCustomers.includes(customer._id)
-                                    ) {
-                                      setSelectedCustomers([
-                                        ...selectedCustomers,
-                                        customer._id,
-                                      ]);
-                                      setCustomerSearch("");
-                                    }
-                                  }}
-                                  className="p-3 border-b border-gray-100 flex-row justify-between items-center"
-                                >
+                            {displayCustomers.map((customer: Customer) => (
+                              <TouchableOpacity
+                                key={customer._id}
+                                onPress={() => {
+                                  if (
+                                    !selectedCustomers.includes(customer._id)
+                                  ) {
+                                    setSelectedCustomers([
+                                      ...selectedCustomers,
+                                      customer._id,
+                                    ]);
+                                    setCustomerSearch("");
+                                  }
+                                }}
+                                className="p-3 border-b border-gray-100 flex-row justify-between items-center"
+                              >
+                                <View className="flex-1">
                                   <Text
-                                    className="text-gray-900 flex-1"
+                                    className="text-gray-900 font-medium"
                                     numberOfLines={1}
                                     ellipsizeMode="tail"
                                   >
                                     {customer.name}
                                   </Text>
-                                  <Ionicons
-                                    name="add-circle-outline"
-                                    size={20}
-                                    color="#3b82f6"
-                                  />
-                                </TouchableOpacity>
-                              ))}
+                                  {customer.phone && (
+                                    <Text className="text-gray-500 text-xs">
+                                      {customer.phone}
+                                    </Text>
+                                  )}
+                                </View>
+                                <Ionicons
+                                  name="add-circle-outline"
+                                  size={20}
+                                  color="#3b82f6"
+                                />
+                              </TouchableOpacity>
+                            ))}
+                            {hasMoreCustomers && (
+                              <TouchableOpacity
+                                onPress={() => fetchNextCustomers()}
+                                className="p-3 items-center"
+                                disabled={isFetchingMoreCustomers}
+                              >
+                                {isFetchingMoreCustomers ? (
+                                  <ActivityIndicator size="small" color="#3b82f6" />
+                                ) : (
+                                  <Text className="text-blue-500 font-medium">Load more...</Text>
+                                )}
+                              </TouchableOpacity>
+                            )}
                           </ScrollView>
                         )}
 
@@ -545,7 +641,7 @@ export function AddContainerModal({
                       {selectedCustomers.length > 0 && (
                         <View className="flex-row flex-wrap gap-2 mt-2">
                           {selectedCustomers.map((customerId) => {
-                            const customer = customers?.find(
+                            const customer = resolvedCustomers[customerId] || customers?.find(
                               (c: Customer) => c._id === customerId,
                             );
                             return (
@@ -610,50 +706,67 @@ export function AddContainerModal({
                       </Input>
 
                       {/* Partner Dropdown List */}
-                      {filteredPartners.filter(
-                        (p: Partner) => !selectedPartners.includes(p._id),
-                      ).length > 0 &&
+                      {displayPartners.length > 0 &&
                         selectedPartners.length < 6 && (
                           <ScrollView
-                            style={{ maxHeight: 150 }}
+                            style={{ maxHeight: 200 }}
                             className="bg-white rounded-xl border border-gray-200 mb-2 z-50"
                             showsVerticalScrollIndicator={true}
                           >
-                            {filteredPartners
-                              .filter(
-                                (p: Partner) =>
-                                  !selectedPartners.includes(p._id),
-                              )
-                              .map((partner: Partner) => (
-                                <TouchableOpacity
-                                  key={partner._id}
-                                  onPress={() => {
-                                    if (
-                                      !selectedPartners.includes(partner._id)
-                                    ) {
-                                      setSelectedPartners([
-                                        ...selectedPartners,
-                                        partner._id,
-                                      ]);
-                                      setPartnerSearch("");
-                                    }
-                                  }}
-                                  className="p-3 border-b border-gray-100 flex-row justify-between items-center"
-                                >
+                            {displayPartners.map((partner: Partner) => (
+                              <TouchableOpacity
+                                key={partner._id}
+                                onPress={() => {
+                                  if (
+                                    !selectedPartners.includes(partner._id)
+                                  ) {
+                                    setSelectedPartners([
+                                      ...selectedPartners,
+                                      partner._id,
+                                    ]);
+                                    setPartnerSearch("");
+                                  }
+                                }}
+                                className="p-3 border-b border-gray-100 flex-row justify-between items-center"
+                              >
+                                <View className="flex-1">
                                   <Text
-                                    className="text-gray-900 flex-1"
+                                    className="text-gray-900 font-medium"
                                     numberOfLines={1}
                                     ellipsizeMode="tail"
                                   >
                                     {partner.name}
                                   </Text>
-                                  <Ionicons
-                                    name="add-circle-outline"
-                                    size={20}
-                                    color="#10b981"
-                                  />
-                                </TouchableOpacity>
-                              ))}
+                                  {partner.phoneNumber ? (
+                                    <Text className="text-gray-500 text-xs">
+                                      {partner.phoneNumber}
+                                    </Text>
+                                  ) : partner.email ? (
+                                    <Text className="text-gray-500 text-xs">
+                                      {partner.email}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                                <Ionicons
+                                  name="add-circle-outline"
+                                  size={20}
+                                  color="#3b82f6"
+                                />
+                              </TouchableOpacity>
+                            ))}
+                            {hasMorePartners && (
+                              <TouchableOpacity
+                                onPress={() => fetchNextPartners()}
+                                className="p-3 items-center"
+                                disabled={isFetchingMorePartners}
+                              >
+                                {isFetchingMorePartners ? (
+                                  <ActivityIndicator size="small" color="#3b82f6" />
+                                ) : (
+                                  <Text className="text-blue-500 font-medium">Load more...</Text>
+                                )}
+                              </TouchableOpacity>
+                            )}
                           </ScrollView>
                         )}
 
@@ -661,7 +774,9 @@ export function AddContainerModal({
                       {selectedPartners.length > 0 && (
                         <View className="flex-row flex-wrap gap-2 mt-2">
                           {selectedPartners.map((partnerId) => {
-                            const partner = partners?.find(
+                            const partner = resolvedPartners[partnerId] || partners?.find(
+                              (p: Partner) => p._id === partnerId,
+                            ) || partnersList?.find(
                               (p: Partner) => p._id === partnerId,
                             );
                             return (

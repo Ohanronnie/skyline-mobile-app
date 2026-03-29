@@ -49,7 +49,7 @@ export default function Documents() {
   );
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  const { data: documents = [], isLoading, refetch } = useDocuments();
+  const { data: documents = [], isLoading, refetch, isRefetching } = useDocuments();
 
   // Mock data fallback - remove when API is fully connected
   const mockDocuments: MockDocument[] = [
@@ -172,7 +172,12 @@ export default function Documents() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refetch} />
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
         }>
         <View className="px-4 pt-6">
           {/* Stats */}

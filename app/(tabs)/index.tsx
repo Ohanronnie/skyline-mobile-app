@@ -10,6 +10,7 @@ import {
   Image,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -75,6 +76,8 @@ export default function Home() {
   );
 
   const {
+    refetch,
+    isRefetching,
     data: stats,
     isLoading,
     error,
@@ -95,6 +98,14 @@ export default function Home() {
         }}
         showsVerticalScrollIndicator={true}
         overScrollMode="always"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
+        }
       >
         <View className="px-4 pt-6">
           {/* Welcome Box */}
@@ -200,15 +211,6 @@ export default function Home() {
                 </View>
               </Box>
             ))}
-          </View>
-
-          {/* Download App Image */}
-          <View className="mt-4 mb-4 -mx-4 items-center">
-            <Image
-              source={require("@/assets/images/download-app.png")}
-              className="w-full h-96"
-              resizeMode="contain"
-            />
           </View>
 
           {/* Recent Activity Box */}

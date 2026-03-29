@@ -2,7 +2,7 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 
 /** Public API origin — use everywhere file URLs or downloads must match the authenticated API. */
-export const API_BASE_URL = "https://api.skyinventories.com/api";
+export const API_BASE_URL = __DEV__ ? "http://localhost:3000/api" : "https://api.skyinventories.com/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -154,7 +154,8 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   limit: number;
-  lastPage: number;
+  totalPages: number;
+  agentsCount: number;
 }
 
 // Shipments
@@ -254,18 +255,29 @@ export interface Shipment {
   createdAt: string;
 }
 
-export const getShipments = (page: number = 1, limit: number = 10) =>
+export const getShipments = (
+  page: number = 1,
+  limit: number = 10,
+  search?: string,
+) =>
   fetcher<PaginatedResponse<Shipment>>("/shipments", {
     page,
     limit,
-    paginated: true,
+    paginate: true,
+    search,
   });
-export const getPartnerShipments = (page: number = 1, limit: number = 10) =>
-  fetcher<PaginatedResponse<Shipment>>("/partners/me/shipments", {
+export const getPartnerShipments = (
+  page: number = 1,
+  limit: number = 10,
+  search?: string,
+) =>
+  fetcher<PaginatedResponse<Shipment>>("/shipments", {
     page,
     limit,
-    paginated: true,
+    paginate: true,
+    search,
   });
+
 export const getShipmentDetails = (id: string) =>
   fetcher<any>(`/shipments/${id}`);
 export const getShipmentTimeline = (id: string) =>
@@ -329,6 +341,8 @@ export interface Customer {
   paymentTerms?: string;
   notes?: string;
   partnerId?: string;
+  agentsCount?: number;
+  shipmentsCount?: number;
   createdAt: string;
 }
 
@@ -344,9 +358,31 @@ export interface CreateCustomerDto {
   partnerId?: string;
 }
 
-export const getCustomers = () => fetcher<Customer[]>("/customers");
-export const getPartnerCustomers = () =>
-  fetcher<Customer[]>("/partners/me/customers");
+export const getCustomers = (
+  page: number = 1,
+  limit: number = 20,
+  search?: string,
+) =>
+  fetcher<PaginatedResponse<Customer>>("/customers", {
+    page,
+    limit,
+    paginate: true,
+    search,
+  });
+
+export const getPartnerCustomers = (
+  page: number = 1,
+  limit: number = 20,
+  search?: string,
+) =>
+  fetcher<PaginatedResponse<Customer>>("/partners/me/customers", {
+    page,
+    limit,
+    paginate: true,
+    search,
+  });
+
+
 export const getCustomerDetails = (id: string) =>
   fetcher<any>(`/customers/${id}`);
 export const createCustomer = (data: CreateCustomerDto) =>
@@ -432,19 +468,28 @@ export interface Container {
 export const getContainers = (
   page: number = 1,
   limit: number = 10,
-  paginated: boolean = true,
+  paginate: boolean = true,
+  search?: string,
 ) =>
-  fetcher<any>("/containers", {
+  fetcher<PaginatedResponse<Container> | Container[]>("/containers", {
     page,
     limit,
-    paginated,
+    paginate,
+    search,
   });
-export const getPartnerContainers = (page: number = 1, limit: number = 10) =>
+export const getPartnerContainers = (
+  page: number = 1,
+  limit: number = 10,
+  search?: string,
+) =>
   fetcher<PaginatedResponse<Container>>("/partners/me/containers", {
     page,
     limit,
-    paginated: true,
+    paginate: true,
+    search,
   });
+
+
 export const getContainerDetails = (id: string) =>
   fetcher<Container>(`/containers/${id}`);
 export const getContainerShipments = (id: string) =>
@@ -591,6 +636,8 @@ export const createWarehouse = (data: CreateWarehouseDto) =>
   api.post("/warehouses", data).then((res) => res.data);
 export const updateWarehouse = (id: string, data: Partial<CreateWarehouseDto>) =>
   api.patch(`/warehouses/${id}`, data).then((res) => res.data);
+export const deleteWarehouse = (id: string) =>
+  api.delete(`/warehouses/${id}`).then((res) => res.data);
 
 // Partners
 export interface Partner {
@@ -608,7 +655,17 @@ export interface Partner {
   updatedAt: string;
 }
 
-export const getPartners = () => fetcher<Partner[]>("/partners");
+export const getPartners = (
+  page?: number,
+  limit?: number,
+  search?: string,
+) =>
+  fetcher<PaginatedResponse<Partner> | Partner[]>("/partners", {
+    page,
+    limit,
+    paginate: !!page,
+    search,
+  });
 export const getPartnerProfile = () => fetcher<any>("/partners/me");
 
 export interface UpdatePartnerDto {
@@ -780,6 +837,14 @@ export const exportExcelReport = (payload: GenerateExcelReportPayload) => {
     });
 };
 
+export const getCustomer = (id: string) => {
+  console.log(`[api] getCustomer id: ${id}`);
+  return fetcher<Customer>(`/customers/${id}`).catch(err => {
+    console.error(`[api] getCustomer error for ${id}:`, err?.response?.status, err?.response?.data);
+    throw err;
+  });
+};
+
 // SMS Templates
 export interface SMSTemplate {
   _id: string;
@@ -864,6 +929,8 @@ export interface PartnerHomeStatsDto {
 
 export const getPartnerHomeStats = () =>
   fetcher<PartnerHomeStatsDto>("/partners/home");
+
+
 
 // Users (Staff/Admin)
 export enum UserRole {

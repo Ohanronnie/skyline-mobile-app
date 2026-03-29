@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -30,7 +31,12 @@ export default function ContainerDetails() {
   const [reportType, setReportType] = useState<"detailed" | "summary" | "">("");
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
 
-  const { data: container, isLoading } = useQuery({
+  const {
+    data: container,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useQuery({
     queryKey: ["container", containerId],
     queryFn: () => getContainerDetails(containerId),
   });
@@ -146,7 +152,15 @@ export default function ContainerDetails() {
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
+        }>
         <View className="px-4 pt-4">
           {/* Generate report button */}
           <Pressable

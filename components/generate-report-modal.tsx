@@ -142,7 +142,7 @@ export function GenerateReportModal({
                   placeholder="Select report type"
                   className="mb-1"
                   variant="filled"
-                  direction="up"
+                  direction="down"
                 />
               </View>
 
@@ -160,7 +160,7 @@ export function GenerateReportModal({
                   placeholder="Select status (optional)"
                   className="mb-1"
                   variant="filled"
-                  direction="up"
+                  direction="down"
                 />
               </View>
 

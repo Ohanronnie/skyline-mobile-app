@@ -7,6 +7,7 @@ import {
     usePartnerCustomers,
 } from "@/hooks/useShipments";
 import { Customer } from "@/lib/api";
+import { customerMatchesSearchQuery } from "@/lib/customer-search";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
@@ -54,14 +55,9 @@ export default function AssignCustomerScreen() {
   const filteredCustomers = useMemo(() => {
     if (!customers) return [];
 
-    return customers.filter((customer: Customer) => {
-      const searchLower = searchQuery.toLowerCase();
-      return (
-        customer.name?.toLowerCase().includes(searchLower) ||
-        customer.email?.toLowerCase().includes(searchLower) ||
-        customer.phone?.toLowerCase().includes(searchLower)
-      );
-    });
+    return customers.filter((customer: Customer) =>
+      customerMatchesSearchQuery(customer, searchQuery),
+    );
   }, [customers, searchQuery]);
 
   const handleAssign = async () => {

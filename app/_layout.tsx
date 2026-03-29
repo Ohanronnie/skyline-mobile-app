@@ -94,6 +94,13 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="onboarding"
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
               name="(auth)"
               options={{
                 headerShown: false,

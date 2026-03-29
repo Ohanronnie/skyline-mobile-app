@@ -1,9 +1,10 @@
 import {
-    Customer,
-    getCustomers,
-    getCustomerShipments,
-    Shipment,
-    ShipmentStatus,
+  Customer,
+  getCustomer,
+  getCustomers,
+  getCustomerShipments,
+  Shipment,
+  ShipmentStatus,
 } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -12,6 +13,7 @@ import { useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
+    RefreshControl,
     ScrollView,
     Text,
     View,
@@ -62,24 +64,62 @@ export default function CustomerDetails() {
   const customerId = params.id as string;
   const [shipmentsExpanded, setShipmentsExpanded] = useState(true);
 
-  const { data: customers = [] } = useQuery({
-    queryKey: ["customers"],
-    queryFn: getCustomers,
+  console.log("[CustomerDetails] customerId:", customerId);
+
+  const {
+    data: customer,
+    isLoading: isLoadingCustomer,
+    error: customerError,
+    refetch: refetchCustomer,
+    isRefetching: isRefetchingCustomer,
+  } = useQuery({
+    queryKey: ["customer", customerId],
+    queryFn: () => {
+      console.log("[CustomerDetails] Calling getCustomer for:", customerId);
+      return getCustomer(customerId);
+    },
+    enabled: !!customerId,
   });
 
-  const { data: shipments = [], isLoading: isLoadingShipments } = useQuery({
+  const {
+    data: shipments = [],
+    isLoading: isLoadingShipments,
+    refetch: refetchShipments,
+    isRefetching: isRefetchingShipments,
+  } = useQuery({
     queryKey: ["customer-shipments", customerId],
     queryFn: () => getCustomerShipments(customerId),
     enabled: !!customerId,
   });
 
-  const customer = customers.find((c: Customer) => c._id === customerId);
-
-  if (!customer) {
+  if (isLoadingCustomer) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
         <View className="flex-1 items-center justify-center">
-          <Text className="text-gray-500">Customer not found</Text>
+          <ActivityIndicator size="large" color="#1A293B" />
+          <Text className="text-gray-500 mt-4">Loading customer details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (customerError || !customer) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 items-center justify-center">
+          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+          <Text className="text-gray-900 font-bold text-lg mt-4">
+            Customer not found
+          </Text>
+          <Text className="text-gray-500 text-center px-10 mt-2">
+            The customer you're looking for could not be found or you don't have access to their details.
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            className="mt-6 px-6 py-3 bg-[#1A293B] rounded-xl"
+          >
+            <Text className="text-white font-bold">Go Back</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -107,7 +147,18 @@ export default function CustomerDetails() {
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetchingCustomer || isRefetchingShipments}
+            onRefresh={() => {
+              refetchCustomer();
+              refetchShipments();
+            }}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
+        }>
         <View className="px-4 pt-4">
           {/* Basic information */}
           <View className="bg-white rounded-2xl p-5 border border-gray-100 mb-4">
@@ -133,11 +184,14 @@ export default function CustomerDetails() {
                 label: "Status",
                 value: "Active", // Assuming active if customer exists
               },
-            ].map((item, index) => (
+              ...(customer.type === "agent" && customer.agentsCount !== undefined
+                ? [{ label: "Agents count", value: customer.agentsCount.toString() }]
+                : []),
+            ].map((item, index, arr) => (
               <View
                 key={item.label}
                 className={`flex-row justify-between py-3 ${
-                  index !== 3 ? "border-b border-gray-100" : ""
+                  index !== arr.length - 1 ? "border-b border-gray-100" : ""
                 }`}>
                 <Text className="text-sm text-gray-500">{item.label}</Text>
                 <Text className="text-sm font-semibold text-[#1A293B] text-right max-w-[60%]">

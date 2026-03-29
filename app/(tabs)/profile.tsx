@@ -29,6 +29,7 @@ export default function Profile() {
   });
 
   const totals = stats?.totals;
+  const appVersion = Constants.expoConfig?.version || "1.0.0";
 
   const displayName = user?.name || "User";
   const subtitleParts: string[] = [];
@@ -42,7 +43,11 @@ export default function Profile() {
     subtitleParts.length > 0 ? subtitleParts.join(" • ") : "Signed in";
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
-      <ScrollView>
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="pb-40"
+        showsVerticalScrollIndicator={false}
+      >
       {/* Navbar */}
       <View className="flex-row items-center justify-between px-4 py-4 bg-white border-b border-gray-200">
         <Pressable
@@ -172,11 +177,6 @@ export default function Profile() {
 
         {/* Sign out */}
 
-        <View className="mt-4 items-center">
-          <Text className="text-gray-400 text-xs font-medium">
-            Version 1.0.22
-          </Text>
-        </View>
         <Pressable
           onPress={logout}
           android_ripple={{ color: "rgba(255,0,0,0.1)" }}
@@ -188,6 +188,12 @@ export default function Profile() {
             </Text>
           </View>
         </Pressable>
+
+        <View className="mt-2 items-center">
+          <Text className="text-gray-400 text-xs font-medium">
+            Version {appVersion}
+          </Text>
+        </View>
       </View>
 
       <SMSManagementModal

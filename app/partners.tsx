@@ -1,6 +1,7 @@
 import { Input, InputField } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreatePartner, usePartners } from "@/hooks/useShipments";
+import { validateAndFormatPhoneNumber } from "@/lib/phone";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -11,6 +12,7 @@ import {
     Modal,
     Platform,
     Pressable,
+    RefreshControl,
     ScrollView,
     Text,
     TouchableOpacity,
@@ -25,7 +27,12 @@ const partnerStatsConfig = [
 ];
 
 export default function Partners() {
-  const { data: partnersData, isLoading } = usePartners();
+  const {
+    data: partnersData,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = usePartners();
   const partners = Array.isArray(partnersData) ? partnersData : [];
   const createPartnerMutation = useCreatePartner();
   const { user, accessPartner } = useAuth();
@@ -69,7 +76,13 @@ export default function Partners() {
   const handleCreatePartner = () => {
     const newErrors: typeof errors = {};
     if (!name.trim()) newErrors.name = "Name is required";
-    if (!phone.trim()) newErrors.phone = "Phone is required";
+    
+    // Validate phone number
+    const formattedPhone = validateAndFormatPhoneNumber(phone);
+    if (!formattedPhone) {
+      newErrors.phone = "Invalid phone number";
+    }
+
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
       newErrors.email = "Enter a valid email";
     }
@@ -78,6 +91,7 @@ export default function Partners() {
       setErrors(newErrors);
       return;
     }
+
     const organization =
       (user as any)?.organization &&
       typeof (user as any)?.organization === "string"
@@ -87,7 +101,7 @@ export default function Partners() {
     createPartnerMutation.mutate(
       {
         name: name.trim(),
-        phoneNumber: phone.trim(),
+        phoneNumber: formattedPhone!,
         email: email.trim() || undefined,
         organization,
       },
@@ -110,7 +124,6 @@ export default function Partners() {
       }
     );
   };
-  console.log(partners);
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Navbar */}
@@ -146,7 +159,15 @@ export default function Partners() {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 32 }}>
+        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#1A293B"
+            colors={["#1A293B"]}
+          />
+        }>
         <View className="px-4 pt-6">
           {/* Stats */}
           <View className="flex-row justify-between mb-6">

@@ -1,7 +1,7 @@
 import { useRequireAuth } from "@/contexts/AuthContext";
-import { usePartnerCustomers } from "@/hooks/useShipments";
-import { Customer } from "@/lib/api";
+import { getCustomer } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import {
     ActivityIndicator,
@@ -17,9 +17,11 @@ export default function CustomerDetailsScreen() {
   const params = useLocalSearchParams();
   const customerId = params.customerId as string;
 
-  const { data: customers = [], isLoading, error } = usePartnerCustomers();
-
-  const customer = customers.find((c: Customer) => c._id === customerId);
+  const { data: customer, isLoading, error } = useQuery({
+    queryKey: ["customer", customerId],
+    queryFn: () => getCustomer(customerId),
+    enabled: !!customerId,
+  });
 
   if (isLoading) {
     return (
