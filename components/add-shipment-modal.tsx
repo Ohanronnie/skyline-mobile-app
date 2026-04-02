@@ -169,9 +169,10 @@ export function AddShipmentModal({
   const updateMutation = useUpdateShipment();
   const toast = useToast();
 
-  // Update resolved customers/partners when search result data changes
+  // Update resolved customers/partners when any relevant data changes
   useEffect(() => {
-    if (customers.length > 0) {
+    const allFetched = [...customers, ...partnersList];
+    if (allFetched.length > 0) {
       setResolvedCustomers((prev) => {
         const next = { ...prev };
         customers.forEach((c) => {
@@ -179,11 +180,6 @@ export function AddShipmentModal({
         });
         return next;
       });
-    }
-  }, [customers]);
-
-  useEffect(() => {
-    if (partnersList.length > 0) {
       setResolvedPartners((prev) => {
         const next = { ...prev };
         partnersList.forEach((p) => {
@@ -192,7 +188,7 @@ export function AddShipmentModal({
         return next;
       });
     }
-  }, [partnersList]);
+  }, [customers, partnersList]);
 
   // Also update from the static partners list if available
   useEffect(() => {
@@ -210,10 +206,18 @@ export function AddShipmentModal({
   // Update form when initialData changes
   useEffect(() => {
     if (initialData) {
+      // 1. Resolve IDs from enriched data if possible
+      const rawCustomerIds = initialData.customerIds || [];
+      const rawPartnerIds = initialData.partnerIds || [];
+
+      // Extract IDs if they were objects
+      const customerIds = (rawCustomerIds as any[]).map((c: any) => typeof c === 'string' ? c : c?._id);
+      const partnerIds = (rawPartnerIds as any[]).map((p: any) => typeof p === 'string' ? p : p?._id);
+
       setTrackingNumber(initialData.trackingNumber || "");
-      setSelectedCustomers(initialData.customerIds || []);
+      setSelectedCustomers(customerIds);
       setCbm(initialData.cbm || "");
-      setSelectedPartners(initialData.partnerIds || []);
+      setSelectedPartners(partnerIds);
       setStatus(initialData.status || "");
       setContainer(initialData.container || "");
       setOriginWarehouse(initialData.originWarehouse || "");
@@ -222,31 +226,28 @@ export function AddShipmentModal({
       setErrors({});
       setGeneralError("");
 
-      // If initialData contains objects instead of just IDs, populate the resolve cache
-      if (initialData.customerIds && initialData.customerIds.length > 0) {
-        setResolvedCustomers((prev) => {
-          const next = { ...prev };
-          (initialData.customerIds as any[]).forEach((item) => {
-            if (typeof item !== "string" && item?._id) {
-              next[item._id] = item;
-            }
-          });
-          return next;
+      // 2. Populate the resolve cache from enriched objects in initialData
+      setResolvedCustomers((prev) => {
+        const next = { ...prev };
+        rawCustomerIds.forEach((item: any) => {
+          if (item && typeof item !== "string" && item._id) {
+            next[item._id] = item;
+          }
         });
-      }
+        return next;
+      });
 
-      if (initialData.partnerIds && initialData.partnerIds.length > 0) {
-        setResolvedPartners((prev) => {
-          const next = { ...prev };
-          (initialData.partnerIds as any[]).forEach((item) => {
-            if (typeof item !== "string" && item?._id) {
-              next[item._id] = item;
-            }
-          });
-          return next;
+      setResolvedPartners((prev) => {
+        const next = { ...prev };
+        rawPartnerIds.forEach((item: any) => {
+          if (item && typeof item !== "string" && item._id) {
+            next[item._id] = item;
+          }
         });
-      }
-    } else {
+        return next;
+      });
+
+    } else if (visible) {
       resetForm();
     }
   }, [initialData, visible]);
@@ -451,597 +452,384 @@ export function AddShipmentModal({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={true}
+      presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1 justify-end bg-black/50"
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <Box className="bg-white rounded-t-3xl h-[85%]">
-            <View className="p-6 flex-1">
-              {/* Header */}
-              <View className="flex-row items-center justify-between mb-6">
-                <Text className="text-xl font-bold text-gray-900">
-                  {initialData ? "Edit shipment" : "New shipment"}
-                </Text>
-                <TouchableOpacity onPress={handleClose}>
-                  <Ionicons name="close" size={24} color="#6B7280" />
-                </TouchableOpacity>
-              </View>
+      <View className="flex-1 bg-white">
+        {/* iOS Handle Indicator */}
+        <View className="items-center pt-3 pb-1">
+          <View className="w-10 h-1.5 bg-gray-300 rounded-full" />
+        </View>
 
-              {/* Error Banner */}
-              {(Object.keys(errors).length > 0 || generalError) && (
-                <View className="mb-4 bg-red-50 p-4 rounded-xl flex-row items-center gap-3 border border-red-100">
-                  <View className="w-8 h-8 bg-red-100 rounded-full items-center justify-center">
-                    <Ionicons name="alert" size={16} color="#EF4444" />
-                  </View>
-                  <Text className="text-red-800 font-medium flex-1">
-                    {generalError || "Please check the errors below"}
-                  </Text>
-                </View>
-              )}
-
-              <ScrollView
-                className="flex-1"
-                showsVerticalScrollIndicator={false}
-                contentContainerClassName="pb-6"
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          className="flex-1"
+        >
+          <View className="flex-1 p-6 relative overflow-hidden">
+            {/* Header */}
+            <View className="flex-row items-center justify-between mb-8">
+              <Text className="text-2xl font-bold text-[#1A293B]">
+                {initialData ? "Edit Shipment" : "New Shipment"}
+              </Text>
+              <TouchableOpacity 
+                onPress={handleClose}
+                className="bg-gray-200 w-8 h-8 rounded-full items-center justify-center"
               >
-                <View onStartShouldSetResponder={() => true}>
-                  {/* Tracking Number */}
-                  <View className="mb-6">
-                    <Text className="text-gray-700 font-medium mb-2">
-                      Tracking number
-                    </Text>
-                    <View className="flex-row gap-3 items-center">
-                      <View className="flex-1">
-                        <Input
-                          variant="outline"
-                          size="lg"
-                          className="bg-white rounded-xl border-gray-200"
-                        >
-                          <InputField
-                            placeholder="Enter tracking number"
-                            placeholderTextColor="#999"
-                            value={trackingNumber}
-                            onChangeText={setTrackingNumber}
-                            className="text-gray-900"
-                          />
-                        </Input>
-                      </View>
-                      <Pressable
-                        onPress={() => setShowScanner(true)}
-                        android_ripple={{ color: "rgba(0,0,0,0.1)" }}
-                      >
-                        <View className="w-12 h-12 border-2 border-gray-300 rounded-xl items-center justify-center bg-white">
-                          <Ionicons
-                            name="camera-outline"
-                            size={24}
-                            color="#1A293B"
-                          />
+                <Ionicons name="close" size={20} color="#1A293B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Error Banner */}
+            {(Object.keys(errors).length > 0 || generalError) && (
+              <View className="mb-6 bg-red-50 p-4 rounded-xl flex-row items-center gap-3 border border-red-100">
+                <View className="w-8 h-8 bg-red-100 rounded-full items-center justify-center">
+                  <Ionicons name="alert" size={16} color="#EF4444" />
+                </View>
+                <Text className="text-red-800 font-medium flex-1">
+                  {generalError || "Please check the errors below"}
+                </Text>
+              </View>
+            )}
+
+            <ScrollView
+              className="flex-1"
+              showsVerticalScrollIndicator={false}
+              contentContainerClassName="pb-10"
+              keyboardShouldPersistTaps="handled"
+            >
+              <View onStartShouldSetResponder={() => true}>
+                {/* SHIPMENT DETAILS SECTION */}
+                <View className="mb-8">
+                  <Text className="text-xs font-semibold text-gray-500 uppercase tracking-widest ml-1 mb-2">
+                    Shipment details
+                  </Text>
+                  <View className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
+                    {/* Tracking Number */}
+                    <View>
+                      <Text className="text-gray-700 font-medium mb-2 text-sm">
+                        Tracking number
+                      </Text>
+                      <View className="flex-row gap-3 items-center">
+                        <View className="flex-1">
+                          <Input
+                            variant="outline"
+                            size="md"
+                            className="bg-gray-50 rounded-lg border-gray-200 h-11"
+                          >
+                            <InputField
+                              placeholder="Enter tracking number"
+                              placeholderTextColor="#999"
+                              value={trackingNumber}
+                              onChangeText={setTrackingNumber}
+                              className="text-gray-900"
+                            />
+                          </Input>
                         </View>
-                      </Pressable>
-                    </View>
-                    {errors.trackingNumber && (
-                      <Text className="text-red-500 text-sm mt-1">
-                        {errors.trackingNumber}
-                      </Text>
-                    )}
-                  </View>
-
-                  {/* Customer Group */}
-                  <View className="mb-6">
-                    <View className="mb-3">
-                      <Text className="text-gray-700 font-medium mb-2">
-                        Customers ({selectedCustomers.length}/6)
-                      </Text>
-                      <Input
-                        variant="outline"
-                        size="lg"
-                        className="bg-white rounded-xl border-gray-200 mb-2"
-                      >
-                        <InputSlot className="pl-3">
-                          <Ionicons name="search" size={20} color="#999" />
-                        </InputSlot>
-                        <InputField
-                          placeholder="Search by name, email, or phone..."
-                          placeholderTextColor="#999"
-                          value={customerSearch}
-                          onChangeText={setCustomerSearch}
-                          className="text-gray-900"
-                        />
-                      </Input>
-                    </View>
-
-                    {/* Customer Dropdown List */}
-                    {displayCustomers.length > 0 &&
-                      selectedCustomers.length < 6 && (
-                        <ScrollView
-                          onStartShouldSetResponder={() => true}
-                          style={{ maxHeight: 200 }}
-                          className="bg-white rounded-xl border border-gray-200 mb-2 z-50"
-                          showsVerticalScrollIndicator={true}
+                        <Pressable
+                          onPress={() => setShowScanner(true)}
+                          android_ripple={{ color: "rgba(0,0,0,0.1)" }}
                         >
-                          {displayCustomers.map((customer: Customer) => (
-                            <TouchableOpacity
-                              key={customer._id}
-                              onPress={() => {
-                                if (
-                                  !selectedCustomers.includes(customer._id)
-                                ) {
-                                  setSelectedCustomers([
-                                    ...selectedCustomers,
-                                    customer._id,
-                                  ]);
-                                  setCustomerSearch("");
-                                }
-                              }}
-                              className="p-3 border-b border-gray-100 flex-row justify-between items-center"
-                            >
-                              <View className="flex-1">
-                                <Text
-                                  className="text-gray-900 font-medium"
-                                  numberOfLines={1}
-                                  ellipsizeMode="tail"
-                                >
-                                  {customer.name}
-                                </Text>
-                                {customer.phone && (
-                                  <Text className="text-gray-500 text-xs">
-                                    {customer.phone}
-                                  </Text>
-                                )}
-                              </View>
-                              <Ionicons
-                                name="add-circle-outline"
-                                size={20}
-                                color="#3b82f6"
-                              />
-                            </TouchableOpacity>
-                          ))}
-                          {hasMoreCustomers && (
-                            <TouchableOpacity
-                              onPress={() => fetchNextCustomers()}
-                              className="p-3 items-center"
-                              disabled={isFetchingMoreCustomers}
-                            >
-                              {isFetchingMoreCustomers ? (
-                                <ActivityIndicator size="small" color="#3b82f6" />
-                              ) : (
-                                <Text className="text-blue-500 font-medium">Load more...</Text>
-                              )}
-                            </TouchableOpacity>
-                          )}
-                        </ScrollView>
-                      )}
-
-                    {/* Selected Customers Chips */}
-                    {selectedCustomers.length > 0 && (
-                      <View className="flex-row flex-wrap gap-2 mt-2 mb-2">
-                        {selectedCustomers.map((customerId) => {
-                          const customer = resolvedCustomers[customerId] || customers?.find(
-                            (c: Customer) => c._id === customerId,
-                          );
-                          return (
-                            <View
-                              key={customerId}
-                              className="bg-blue-100 rounded-full px-3 py-1.5 flex-row items-center max-w-[200px]"
-                            >
-                              <Text
-                                className="text-blue-800 font-medium mr-1.5"
-                                numberOfLines={1}
-                                ellipsizeMode="tail"
-                              >
-                                {customer?.name || "Unknown"}
-                              </Text>
-                              <TouchableOpacity
-                                onPress={() => {
-                                  setSelectedCustomers(
-                                    selectedCustomers.filter(
-                                      (id) => id !== customerId,
-                                    ),
-                                  );
-                                }}
-                              >
-                                <Ionicons
-                                  name="close-circle"
-                                  size={18}
-                                  color="#1e40af"
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          );
-                        })}
+                          <View className="w-11 h-11 border border-gray-200 rounded-lg items-center justify-center bg-gray-50">
+                            <Ionicons
+                              name="camera-outline"
+                              size={22}
+                              color="#1A293B"
+                            />
+                          </View>
+                        </Pressable>
                       </View>
-                    )}
-                    {errors.customerIds && (
-                      <Text className="text-red-500 text-sm mt-1">
-                        {errors.customerIds}
-                      </Text>
-                    )}
+                      {errors.trackingNumber && (
+                        <Text className="text-red-500 text-xs mt-1">
+                          {errors.trackingNumber}
+                        </Text>
+                      )}
+                    </View>
 
-                    {/* CBM Input */}
-                    <View className="mt-3">
-                      <Text className="text-gray-700 font-medium mb-2">
+                    {/* CBM */}
+                    <View className="mt-4">
+                      <Text className="text-gray-700 font-medium mb-2 text-sm">
                         CBM
                       </Text>
                       <Input
                         variant="outline"
-                        size="lg"
-                        className="bg-white rounded-xl border-gray-200"
+                        size="md"
+                        className="bg-gray-50 rounded-lg border-gray-200 h-11"
                       >
                         <InputField
-                          placeholder="CBM"
+                          placeholder="0.00"
                           placeholderTextColor="#999"
-                          value={cbm}
+                          value={cbm.toString()}
                           onChangeText={setCbm}
                           keyboardType="numeric"
                           className="text-gray-900"
                         />
                       </Input>
-                    </View>
-                  </View>
-
-                  {/* Partners Section */}
-                  <View className="mb-6">
-                    <View className="mb-3">
-                      <Text className="text-gray-700 font-medium mb-2">
-                        Partners ({selectedPartners.length}/6)
-                      </Text>
-                      <Input
-                        variant="outline"
-                        size="lg"
-                        className="bg-white rounded-xl border-gray-200 mb-2"
-                      >
-                        <InputSlot className="pl-3">
-                          <Ionicons name="search" size={20} color="#999" />
-                        </InputSlot>
-                        <InputField
-                          placeholder="Search partner..."
-                          placeholderTextColor="#999"
-                          value={partnerSearch}
-                          onChangeText={setPartnerSearch}
-                          className="text-gray-900"
-                        />
-                      </Input>
-                    </View>
-
-                    {/* Partner Dropdown List */}
-                    {displayPartners.length > 0 &&
-                      selectedPartners.length < 6 && (
-                        <ScrollView
-                          onStartShouldSetResponder={() => true}
-                          style={{ maxHeight: 200 }}
-                          className="bg-white rounded-xl border border-gray-200 mb-2 z-50"
-                          showsVerticalScrollIndicator={true}
-                        >
-                          {displayPartners.map((partner: Partner) => (
-                            <TouchableOpacity
-                              key={partner._id}
-                              onPress={() => {
-                                if (!selectedPartners.includes(partner._id)) {
-                                  setSelectedPartners([
-                                    ...selectedPartners,
-                                    partner._id,
-                                  ]);
-                                  setPartnerSearch("");
-                                }
-                              }}
-                              className="p-3 border-b border-gray-100 flex-row justify-between items-center"
-                            >
-                              <View className="flex-1">
-                                <Text
-                                  className="text-gray-900 font-medium"
-                                  numberOfLines={1}
-                                  ellipsizeMode="tail"
-                                >
-                                  {partner.name}
-                                </Text>
-                                {partner.phoneNumber ? (
-                                  <Text className="text-gray-500 text-xs">
-                                    {partner.phoneNumber}
-                                  </Text>
-                                ) : partner.email ? (
-                                  <Text className="text-gray-500 text-xs">
-                                    {partner.email}
-                                  </Text>
-                                ) : null}
-                              </View>
-                              <Ionicons
-                                name="add-circle-outline"
-                                size={20}
-                                color="#10b981"
-                              />
-                            </TouchableOpacity>
-                          ))}
-                          {hasMorePartners && (
-                            <TouchableOpacity
-                              onPress={() => fetchNextPartners()}
-                              className="p-3 items-center"
-                              disabled={isFetchingMorePartners}
-                            >
-                              {isFetchingMorePartners ? (
-                                <ActivityIndicator size="small" color="#3b82f6" />
-                              ) : (
-                                <Text className="text-blue-500 font-medium">Load more...</Text>
-                              )}
-                            </TouchableOpacity>
-                          )}
-                        </ScrollView>
-                      )}
-
-                    {/* Selected Partners Chips */}
-                    {selectedPartners.length > 0 && (
-                      <View className="flex-row flex-wrap gap-2 mt-2">
-                        {selectedPartners.map((partnerId) => {
-                          const partner = resolvedPartners[partnerId] || partners?.find(
-                            (p: Partner) => p._id === partnerId,
-                          ) || (partnersList as Partner[])?.find(
-                            (p: Partner) => p._id === partnerId,
-                          );
-                          return (
-                            <View
-                              key={partnerId}
-                              className="bg-green-100 rounded-full px-3 py-1.5 flex-row items-center max-w-[200px]"
-                            >
-                              <Text
-                                className="text-green-800 font-medium mr-1.5"
-                                numberOfLines={1}
-                                ellipsizeMode="tail"
-                              >
-                                {partner?.name || "Unknown"}
-                              </Text>
-                              <TouchableOpacity
-                                onPress={() => {
-                                  setSelectedPartners(
-                                    selectedPartners.filter(
-                                      (id) => id !== partnerId,
-                                    ),
-                                  );
-                                }}
-                              >
-                                <Ionicons
-                                  name="close-circle"
-                                  size={18}
-                                  color="#15803d"
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    )}
-                    {errors.partnerIds && (
-                      <Text className="text-red-500 text-sm mt-1">
-                        {errors.partnerIds}
-                      </Text>
-                    )}
-                  </View>
-
-                  {/* Status & Container Group (2 columns) */}
-                  <View className="mb-6">
-                    <View className="flex-row gap-3 mb-3">
-                      {/* Status - 50% width */}
-                      <View className="flex-1">
-                        <Text className="text-gray-700 font-medium mb-2">
-                          Status
+                      {errors.cbm && (
+                        <Text className="text-red-500 text-xs mt-1">
+                          {errors.cbm}
                         </Text>
+                      )}
+                    </View>
+                  </View>
+                </View>
+
+                {/* STATUS & LOGISTICS SECTION */}
+                <View className="mb-8" style={{ zIndex: 100 }}>
+                  <Text className="text-xs font-semibold text-gray-500 uppercase tracking-widest ml-1 mb-2">
+                    Status & Logistics
+                  </Text>
+                  <View className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
+                    <View className="flex-row gap-4">
+                      <View className="flex-1 z-[60]">
+                        <Text className="text-gray-700 font-medium mb-2 text-sm">Status</Text>
                         <CustomSelect
                           options={statusOptions}
                           selectedValue={status}
-                          onValueChange={(value) => {
-                            console.log("Status selected:", value);
-                            setStatus(value);
-                          }}
-                          placeholder="Select status"
-                          direction="down"
+                          onValueChange={setStatus}
+                          placeholder="Select"
+                          variant="filled"
                         />
-                        {errors.status && (
-                          <Text className="text-red-500 text-sm mt-1">
-                            {errors.status}
-                          </Text>
-                        )}
                       </View>
-
-                      {/* Container - 50% width */}
-                      <View className="flex-1">
-                        <Text className="text-gray-700 font-medium mb-2">
-                          Container
-                        </Text>
+                      <View className="flex-1 z-[60]">
+                        <Text className="text-gray-700 font-medium mb-2 text-sm">Container</Text>
                         <CustomSelect
-                          options={
-                            isLoadingContainers
-                              ? [{ label: "Loading containers...", value: "" }]
-                              : containersError
-                                ? [
-                                    {
-                                      label: "Error loading containers",
-                                      value: "",
-                                    },
-                                  ]
-                                : containerOptions.length > 0
-                                  ? containerOptions
-                                  : [
-                                      {
-                                        label: "No containers found (empty)",
-                                        value: "",
-                                      },
-                                    ]
-                          }
+                          options={containerOptions.length > 0 ? containerOptions : [{ label: "Empty", value: "" }]}
                           selectedValue={container}
-                          onValueChange={(value) => {
-                            if (value) {
-                              console.log("Container selected:", value);
-                              setContainer(value);
-                            }
-                          }}
-                          placeholder={
-                            containers?.length === 0
-                              ? "No containers yet"
-                              : "Select container"
-                          }
+                          onValueChange={setContainer}
+                          placeholder="Select"
+                          variant="filled"
                         />
-                        {errors.containerId && (
-                          <Text className="text-red-500 text-sm mt-1">
-                            {errors.containerId}
-                          </Text>
-                        )}
                       </View>
                     </View>
 
-                    <View className="flex-row gap-3">
-                      {/* Origin Warehouse Select - 50% width */}
-                      <View className="flex-1">
-                        <Text className="text-gray-700 font-medium mb-2">
-                          Origin warehouse
-                        </Text>
+                    <View className="flex-row gap-4 mt-4">
+                      <View className="flex-1 z-[50]">
+                        <Text className="text-gray-700 font-medium mb-2 text-sm">Origin</Text>
                         <CustomSelect
-                          options={
-                            warehouseOptions.length > 0
-                              ? warehouseOptions
-                              : [{ label: "No warehouses found", value: "" }]
-                          }
+                          options={warehouseOptions}
                           selectedValue={originWarehouse}
-                          onValueChange={(value) => {
-                            if (value) {
-                              console.log("Origin warehouse selected:", value);
-                              setOriginWarehouse(value);
-                            }
-                          }}
-                          placeholder={
-                            warehouses?.length === 0
-                              ? "No warehouses yet"
-                              : "Select warehouse"
-                          }
-                          direction="down"
+                          onValueChange={setOriginWarehouse}
+                          placeholder="Select"
+                          variant="filled"
                         />
-                        {errors.originWarehouseId && (
-                          <Text className="text-red-500 text-sm mt-1">
-                            {errors.originWarehouseId}
-                          </Text>
-                        )}
                       </View>
-
-                      {/* Current Warehouse Select - 50% width */}
-                      <View className="flex-1">
-                        <Text className="text-gray-700 font-medium mb-2">
-                          Current warehouse
-                        </Text>
+                      <View className="flex-1 z-[50]">
+                        <Text className="text-gray-700 font-medium mb-2 text-sm">Current</Text>
                         <CustomSelect
-                          options={
-                            warehouseOptions.length > 0
-                              ? warehouseOptions
-                              : [{ label: "No warehouses found", value: "" }]
-                          }
+                          options={warehouseOptions}
                           selectedValue={currentWarehouse}
-                          onValueChange={(value) => {
-                            if (value) {
-                              console.log("Current warehouse selected:", value);
-                              setCurrentWarehouse(value);
-                            }
-                          }}
-                          placeholder={
-                            warehouses?.length === 0
-                              ? "No warehouses yet"
-                              : "Select warehouse"
-                          }
-                          direction="down"
+                          onValueChange={setCurrentWarehouse}
+                          placeholder="Select"
+                          variant="filled"
                         />
-                        {errors.currentWarehouseId && (
-                          <Text className="text-red-500 text-sm mt-1">
-                            {errors.currentWarehouseId}
-                          </Text>
-                        )}
                       </View>
                     </View>
                   </View>
+                </View>
 
-                  {/* Description - Textarea */}
-                  <View className="mb-6">
-                    <Text className="text-gray-700 font-medium mb-2">
-                      Description
-                    </Text>
+                {/* CUSTOMERS SECTION */}
+                <View className="mb-8">
+                  <Text className="text-xs font-semibold text-gray-500 uppercase tracking-widest ml-1 mb-2">
+                    Customers ({selectedCustomers.length}/6)
+                  </Text>
+                  <View className="bg-white rounded-xl border border-gray-100 p-4">
                     <Input
                       variant="outline"
-                      size="lg"
-                      className="bg-white rounded-xl border-gray-200 h-[100px]"
+                      size="md"
+                      className="bg-gray-50 rounded-lg border-gray-200 mb-2 h-11"
+                    >
+                      <InputSlot className="pl-3">
+                        <Ionicons name="search" size={18} color="#999" />
+                      </InputSlot>
+                      <InputField
+                        placeholder="Search customers..."
+                        placeholderTextColor="#999"
+                        value={customerSearch}
+                        onChangeText={setCustomerSearch}
+                        className="text-gray-900"
+                      />
+                    </Input>
+
+                    {/* Customer Dropdown */}
+                    {displayCustomers.length > 0 && selectedCustomers.length < 6 && (
+                      <ScrollView
+                        style={{ maxHeight: 180 }}
+                        className="bg-white rounded-lg border border-gray-100 my-2"
+                        nestedScrollEnabled
+                      >
+                        {displayCustomers.map((customer: Customer) => (
+                          <TouchableOpacity
+                            key={customer._id}
+                            onPress={() => {
+                              // Cache the object instantly to avoid 'Unknown' when search changes
+                              setResolvedCustomers(prev => ({ ...prev, [customer._id]: customer }));
+                              setSelectedCustomers([...selectedCustomers, customer._id]);
+                              setCustomerSearch("");
+                            }}
+                            className="p-3 border-b border-gray-50 flex-row justify-between items-center"
+                          >
+                            <Text className="text-gray-800 font-medium">{customer.name}</Text>
+                            <Ionicons name="add-circle" size={20} color="#3b82f6" />
+                          </TouchableOpacity>
+                        ))}
+                        {hasMoreCustomers && (
+                          <TouchableOpacity
+                            onPress={() => fetchNextCustomers()}
+                            className="p-3 items-center"
+                          >
+                            <Text className="text-blue-500 text-xs font-semibold">LOAD MORE</Text>
+                          </TouchableOpacity>
+                        )}
+                      </ScrollView>
+                    )}
+
+                    {/* Customer Chips */}
+                    <View className="flex-row flex-wrap gap-2 mt-2">
+                      {selectedCustomers.map((id) => (
+                        <View key={id} className="bg-blue-50 border border-blue-100 rounded-full px-3 py-1 flex-row items-center">
+                          <Text className="text-blue-700 text-xs font-medium mr-1">
+                            {resolvedCustomers[id]?.name || (customers?.find((c: Customer) => c?._id === id)?.name) || "Loading..."}
+                          </Text>
+                          <TouchableOpacity onPress={() => setSelectedCustomers(selectedCustomers.filter(sid => sid !== id))}>
+                            <Ionicons name="close-circle" size={16} color="#3b82f6" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+
+                {/* PARTNERS SECTION */}
+                <View className="mb-8">
+                  <Text className="text-xs font-semibold text-gray-500 uppercase tracking-widest ml-1 mb-2">
+                    Partners ({selectedPartners.length}/6)
+                  </Text>
+                  <View className="bg-white rounded-xl border border-gray-100 p-4">
+                    <Input
+                      variant="outline"
+                      size="md"
+                      className="bg-gray-50 rounded-lg border-gray-200 mb-2 h-11"
+                    >
+                      <InputSlot className="pl-3">
+                        <Ionicons name="search" size={18} color="#999" />
+                      </InputSlot>
+                      <InputField
+                        placeholder="Search partners..."
+                        placeholderTextColor="#999"
+                        value={partnerSearch}
+                        onChangeText={setPartnerSearch}
+                        className="text-gray-900"
+                      />
+                    </Input>
+
+                    {/* Partner Dropdown */}
+                    {displayPartners.length > 0 && selectedPartners.length < 6 && (
+                      <ScrollView
+                        style={{ maxHeight: 180 }}
+                        className="bg-white rounded-lg border border-gray-100 my-2"
+                        nestedScrollEnabled
+                      >
+                        {displayPartners.map((partner: Partner) => (
+                          <TouchableOpacity
+                            key={partner._id}
+                            onPress={() => {
+                              // Cache the object instantly to avoid 'Unknown' when search changes
+                              setResolvedPartners(prev => ({ ...prev, [partner._id]: partner }));
+                              setSelectedPartners([...selectedPartners, partner._id]);
+                              setPartnerSearch("");
+                            }}
+                            className="p-3 border-b border-gray-100 flex-row justify-between items-center"
+                          >
+                            <Text className="text-gray-800 font-medium">{partner.name}</Text>
+                            <Ionicons name="add-circle" size={20} color="#10b981" />
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    )}
+
+                    {/* Partner Chips */}
+                    <View className="flex-row flex-wrap gap-2 mt-2">
+                      {selectedPartners.map((id) => (
+                        <View key={id} className="bg-green-50 border border-green-100 rounded-full px-3 py-1 flex-row items-center">
+                          <Text className="text-green-700 text-xs font-medium mr-1">
+                            {resolvedPartners[id]?.name || (partnersList?.find((p: Partner) => p?._id === id)?.name) || "Loading..."}
+                          </Text>
+                          <TouchableOpacity onPress={() => setSelectedPartners(selectedPartners.filter(sid => sid !== id))}>
+                            <Ionicons name="close-circle" size={16} color="#10b981" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+
+                {/* DESCRIPTION SECTION */}
+                <View className="mb-10">
+                  <Text className="text-xs font-semibold text-gray-500 uppercase tracking-widest ml-1 mb-2">
+                    Notes
+                  </Text>
+                  <View className="bg-white rounded-xl border border-gray-100 p-4">
+                    <Input
+                      variant="outline"
+                      size="md"
+                      className="bg-gray-50 rounded-lg border-gray-200 min-h-[100px]"
                     >
                       <InputField
-                        placeholder="Enter description"
+                        placeholder="Enter description..."
                         placeholderTextColor="#999"
                         value={description}
                         onChangeText={setDescription}
                         multiline
                         numberOfLines={4}
-                        className="text-gray-900 min-h-[100px] py-3"
+                        className="text-gray-900 py-2"
+                        textAlignVertical="top"
                       />
                     </Input>
                   </View>
                 </View>
+              </View>
+            </ScrollView>
 
-                {/* Actions */}
-                <View className="flex-row gap-4 mb-6">
-                  <TouchableOpacity
-                    onPress={handleClose}
-                    className="flex-1 py-4 rounded-xl border border-gray-300 items-center"
-                  >
-                    <Text className="text-gray-700 font-bold text-lg">
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={
-                      createMutation.isPending || updateMutation.isPending
-                    }
-                    style={{
-                      opacity:
-                        createMutation.isPending || updateMutation.isPending
-                          ? 0.7
-                          : 1,
-                    }}
-                    className={`flex-1 py-4 rounded-xl items-center flex-row justify-center ${
-                      createMutation.isPending || updateMutation.isPending
-                        ? "bg-gray-400"
-                        : "bg-primary-blue"
-                    }`}
-                  >
-                    {createMutation.isPending || updateMutation.isPending ? (
-                      <View className="flex-row items-center gap-2">
-                        <ActivityIndicator color="white" size="small" />
-                        <Text className="text-white font-bold text-lg">
-                          Processing...
-                        </Text>
-                      </View>
-                    ) : (
-                      <>
-                        <Ionicons
-                          name={initialData ? "save" : "add"}
-                          size={24}
-                          color="white"
-                          className="mr-2"
-                        />
-                        <Text className="text-white font-bold text-lg ml-2">
-                          {initialData ? "Update" : "Save"}
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
+            {/* FIXED FOOTER */}
+            <View className="pt-4 pb-10 px-2 bg-white border-t border-gray-100 -mx-6">
+              <View className="flex-row gap-4 px-6">
+                <TouchableOpacity
+                  onPress={handleClose}
+                  className="flex-1 py-4 rounded-xl border border-gray-300 items-center bg-white"
+                >
+                  <Text className="text-gray-600 font-bold text-lg">Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSubmit}
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                  className={`flex-1 py-4 rounded-xl items-center flex-row justify-center shadow-sm ${
+                    createMutation.isPending || updateMutation.isPending ? "bg-gray-400" : "bg-primary-blue"
+                  }`}
+                >
+                  {createMutation.isPending || updateMutation.isPending ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name={initialData ? "save-outline" : "add-outline"} size={22} color="white" />
+                      <Text className="text-white font-bold text-lg ml-2">
+                        {initialData ? "Update" : "Create"}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </Box>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+          </View>
+        </KeyboardAvoidingView>
 
-      {/* Barcode Scanner Modal */}
-      {showScanner && (
-        <BarcodeScanner
-          onClose={() => setShowScanner(false)}
-          onScan={handleBarcodeScan}
-        />
-      )}
+        {/* Barcode Scanner Overlay */}
+        {showScanner && (
+          <BarcodeScanner
+            onClose={() => setShowScanner(false)}
+            onScan={handleBarcodeScan}
+          />
+        )}
+      </View>
     </Modal>
   );
 }

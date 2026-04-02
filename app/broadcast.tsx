@@ -1,7 +1,7 @@
 import { CustomSelect } from "@/components/custom-select";
 import { Box } from "@/components/ui/box";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSMSTemplates } from "@/hooks/useShipments";
+import { useInfiniteCustomers, useSMSTemplates } from "@/hooks/useShipments";
 import {
   BroadcastPayload,
   BroadcastTarget,
@@ -10,12 +10,14 @@ import {
   Partner,
   SMSTemplate,
   getCustomers,
+  getPaginatedItems,
+  getPaginatedTotal,
   getPartners,
   sendBroadcast,
 } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -66,6 +68,8 @@ export default function BroadcastScreen() {
     null
   );
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
   const [isLoadingPartners, setIsLoadingPartners] = useState(false);
   const [title, setTitle] = useState("");
@@ -78,6 +82,21 @@ export default function BroadcastScreen() {
 
   // Fetch SMS templates from API
   const { data: smsTemplates = [], isLoading: isLoadingTemplates } = useSMSTemplates();
+  const {
+    data: customerSearchData,
+    fetchNextPage: fetchNextCustomers,
+    hasNextPage: hasMoreCustomers,
+    isFetching: isFetchingCustomerSearch,
+    isFetchingNextPage: isFetchingMoreCustomers,
+  } = useInfiniteCustomers(debouncedCustomerSearch);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCustomerSearch(customerSearch.trim());
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [customerSearch]);
 
   // Hardcoded welcome templates based on organization
   const skylineWelcomeTemplate = `Welcome to Skyline Shipping Solutions 
@@ -158,10 +177,13 @@ Thank you for choosing SkyRak — we look forward to serving you!
           getCustomers(),
           getPartners(),
         ]);
-        setCustomers(customersData);
-        setPartners(partnersData);
-        setCustomerCount(customersData.length);
-        setPartnerCount(partnersData.length);
+        const nextCustomers = getPaginatedItems(customersData);
+        const nextPartners = getPaginatedItems(partnersData);
+
+        setCustomers(nextCustomers);
+        setPartners(nextPartners);
+        setCustomerCount(getPaginatedTotal(customersData));
+        setPartnerCount(getPaginatedTotal(partnersData));
       } catch (error) {
         console.log("[broadcast] failed to load counts", error);
       } finally {
@@ -172,6 +194,28 @@ Thank you for choosing SkyRak — we look forward to serving you!
 
     loadCounts();
   }, []);
+
+  const customerSearchResults = useMemo(() => {
+    return (
+      customerSearchData?.pages.flatMap((page) => page.data ?? []) ?? []
+    );
+  }, [customerSearchData]);
+
+  const customerPickerResults = useMemo(() => {
+    const result = new Map<string, Customer>();
+
+    if (selectedCustomer?._id) {
+      result.set(selectedCustomer._id, selectedCustomer);
+    }
+
+    customerSearchResults.forEach((customer) => {
+      if (customer?._id) {
+        result.set(customer._id, customer);
+      }
+    });
+
+    return Array.from(result.values());
+  }, [customerSearchResults, selectedCustomer]);
 
   const handleSelectRecipient = (target: BroadcastTarget) => {
     setSelectedRecipient(target);
@@ -360,26 +404,131 @@ Thank you for choosing SkyRak — we look forward to serving you!
                 <Text className="text-sm font-medium text-[#1A293B] mb-2">
                   Choose customer
                 </Text>
-                <CustomSelect
-                  options={customers.map((customer) => ({
-                    label: customer.name,
-                    value: customer._id,
-                  }))}
-                  selectedValue={selectedCustomer?._id}
-                  onValueChange={(value) => {
-                    const customer =
-                      customers.find((c) => c._id === value) || null;
-                    setSelectedCustomer(customer);
-                  }}
-                  placeholder={
-                    isLoadingCustomers
-                      ? "Loading customers..."
-                      : "Select customer"
-                  }
-                  className="mb-1"
-                  variant="filled"
-                  direction="up"
+                <TextInput
+                  value={customerSearch}
+                  onChangeText={setCustomerSearch}
+                  placeholder="Search customers by name, email or phone"
+                  placeholderTextColor="#9CA3AF"
+                  className="border border-gray-200 rounded-2xl px-4 py-3 text-base text-[#1A293B] mb-3"
                 />
+                {selectedCustomer && (
+                  <View className="border border-primary-blue bg-primary-blue/5 rounded-2xl p-3 mb-3">
+                    <Text className="text-xs font-medium text-primary-blue mb-1">
+                      Selected customer
+                    </Text>
+                    <View className="flex-row items-start justify-between gap-3">
+                      <View className="flex-1">
+                        <Text className="text-base font-semibold text-[#1A293B]">
+                          {selectedCustomer.name}
+                        </Text>
+                        {!!selectedCustomer.phone && (
+                          <Text className="text-sm text-gray-500 mt-1">
+                            {selectedCustomer.phone}
+                          </Text>
+                        )}
+                        {!!selectedCustomer.email && (
+                          <Text className="text-sm text-gray-500">
+                            {selectedCustomer.email}
+                          </Text>
+                        )}
+                      </View>
+                      <Pressable
+                        onPress={() => setSelectedCustomer(null)}
+                        android_ripple={{ color: "rgba(0,0,0,0.05)" }}>
+                        <View className="bg-white border border-gray-200 rounded-xl px-3 py-2">
+                          <Text className="text-sm font-medium text-[#1A293B]">
+                            Change
+                          </Text>
+                        </View>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+                <View
+                  className="border border-gray-200 rounded-2xl overflow-hidden bg-gray-50"
+                  style={{ maxHeight: 280 }}>
+                  {isLoadingCustomers || isFetchingCustomerSearch ? (
+                    <View className="py-6 items-center">
+                      <ActivityIndicator size="small" color="#1A293B" />
+                      <Text className="text-sm text-gray-500 mt-2">
+                        Loading customers...
+                      </Text>
+                    </View>
+                  ) : customerPickerResults.length === 0 ? (
+                    <View className="py-6 items-center px-4">
+                      <Text className="text-sm text-gray-500 text-center">
+                        No customers found for this search.
+                      </Text>
+                    </View>
+                  ) : (
+                    <ScrollView
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator={false}>
+                      {customerPickerResults.map((customer, index) => {
+                        const isSelected = selectedCustomer?._id === customer._id;
+
+                        return (
+                          <Pressable
+                            key={customer._id}
+                            onPress={() => setSelectedCustomer(customer)}
+                            android_ripple={{ color: "rgba(0,0,0,0.05)" }}
+                            className={`px-4 py-3 ${
+                              index < customerPickerResults.length - 1
+                                ? "border-b border-gray-200"
+                                : ""
+                            } ${isSelected ? "bg-primary-blue/5" : "bg-white"}`}>
+                            <View className="flex-row items-start justify-between gap-3">
+                              <View className="flex-1">
+                                <Text
+                                  className={`text-base font-medium ${
+                                    isSelected
+                                      ? "text-primary-blue"
+                                      : "text-[#1A293B]"
+                                  }`}>
+                                  {customer.name}
+                                </Text>
+                                {!!customer.phone && (
+                                  <Text className="text-sm text-gray-500 mt-1">
+                                    {customer.phone}
+                                  </Text>
+                                )}
+                                {!!customer.email && (
+                                  <Text className="text-sm text-gray-500">
+                                    {customer.email}
+                                  </Text>
+                                )}
+                              </View>
+                              {isSelected && (
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={20}
+                                  color="#1A293B"
+                                />
+                              )}
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
+                </View>
+                {hasMoreCustomers && (
+                  <Pressable
+                    onPress={() => fetchNextCustomers()}
+                    disabled={isFetchingMoreCustomers}
+                    android_ripple={{ color: "rgba(0,0,0,0.05)" }}
+                    className="mt-2">
+                    <View className="bg-gray-100 rounded-xl py-2 items-center">
+                      {isFetchingMoreCustomers ? (
+                        <ActivityIndicator size="small" color="#1A293B" />
+                      ) : (
+                        <Text className="text-sm font-medium text-[#1A293B]">
+                          Load more customers
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                )}
               </View>
             )}
 

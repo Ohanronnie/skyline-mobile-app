@@ -20,6 +20,7 @@ import {
   getContainers,
   getCustomers,
   getDocuments,
+  getPaginatedItems,
   getPartnerContainers,
   getPartnerCustomers,
   getPartners,
@@ -97,7 +98,7 @@ export const useCustomers = (
 ) => {
   return useQuery({
     queryKey: ["customers"],
-    queryFn: () => getCustomers().then(res => (Array.isArray(res) ? res : res.data || [])).catch(() => []),
+    queryFn: () => getCustomers().then((res) => getPaginatedItems(res)).catch(() => []),
     ...options,
   });
 };
@@ -129,7 +130,8 @@ export const usePartnerCustomers = (
 ) => {
   return useQuery({
     queryKey: ["partner-customers"],
-    queryFn: () => getPartnerCustomers().then(res => (Array.isArray(res) ? res : res.data || [])).catch(() => []),
+    queryFn: () =>
+      getPartnerCustomers().then((res) => getPaginatedItems(res)).catch(() => []),
     ...options,
   });
 };

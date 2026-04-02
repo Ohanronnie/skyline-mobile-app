@@ -78,9 +78,6 @@ api.interceptors.request.use(
     const token = await getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log("[api] attaching token to", config.url);
-    } else {
-      console.log("[api] no token for", config.url);
     }
     return config;
   },
@@ -157,6 +154,24 @@ export interface PaginatedResponse<T> {
   totalPages: number;
   agentsCount: number;
 }
+
+export const getPaginatedItems = <T>(
+  response?: PaginatedResponse<T> | T[] | null,
+): T[] => {
+  if (!response) return [];
+  if (Array.isArray(response)) return response;
+  return Array.isArray(response.data) ? response.data : [];
+};
+
+export const getPaginatedTotal = <T>(
+  response?: PaginatedResponse<T> | T[] | null,
+): number => {
+  if (!response) return 0;
+  if (Array.isArray(response)) return response.length;
+  return typeof response.total === "number"
+    ? response.total
+    : getPaginatedItems(response).length;
+};
 
 // Shipments
 export enum ShipmentStatus {

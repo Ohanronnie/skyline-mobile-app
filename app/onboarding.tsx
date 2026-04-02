@@ -19,7 +19,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 /** Reused across slides so later screens always have a photo backdrop. */
 const ONBOARDING_BG_SHIPPING = require("@/assets/images/background-image.jpg");
@@ -80,7 +80,9 @@ const SLIDES: SlideSpec[] = [
 
 export default function OnboardingScreen() {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
+
   const [index, setIndex] = useState(0);
   const lastIndex = SLIDES.length - 1;
 
@@ -127,24 +129,22 @@ export default function OnboardingScreen() {
 
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <View style={styles.root}>
-        <SafeAreaView edges={["top"]} style={styles.topSafe}>
-          <View style={styles.headerRow}>
-            <Pressable
-              onPress={goBack}
-              hitSlop={12}
-              disabled={index === 0}
-              style={[styles.backBtn, { opacity: index === 0 ? 0 : 1 }]}
-              pointerEvents={index === 0 ? "none" : "auto"}
-              accessibilityState={{ disabled: index === 0 }}>
-              <Ionicons name="chevron-back" size={22} color="#fff" />
-            </Pressable>
-            <Pressable onPress={onSkip} hitSlop={12} style={styles.skipHit}>
-              <Text style={styles.skipText}>Skip</Text>
-            </Pressable>
-          </View>
-        </SafeAreaView>
+        {/* Absolute Header for edge-to-edge look */}
+        <View style={[styles.headerPosition, { top: insets.top + 8 }]}>
+          <Pressable
+            onPress={goBack}
+            hitSlop={12}
+            disabled={index === 0}
+            style={[styles.backBtn, { opacity: index === 0 ? 0 : 1 }]}
+            pointerEvents={index === 0 ? "none" : "auto"}>
+            <Ionicons name="chevron-back" size={24} color="#1A293B" />
+          </Pressable>
+          <Pressable onPress={onSkip} hitSlop={12}>
+            <Text style={styles.skipText}>Skip</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.scrollHost}>
           <ScrollView
@@ -155,7 +155,6 @@ export default function OnboardingScreen() {
             onMomentumScrollEnd={onScrollEnd}
             bounces={false}
             decelerationRate="fast"
-            keyboardShouldPersistTaps="handled"
             style={styles.hScroll}
             contentContainerStyle={styles.hScrollContent}>
             {SLIDES.map((slide) => (
@@ -166,11 +165,12 @@ export default function OnboardingScreen() {
                   resizeMode="cover">
                   <LinearGradient
                     colors={[
-                      "rgba(26, 41, 59, 0.78)",
-                      "rgba(26, 41, 59, 0.92)",
-                      "#1A293B",
+                      "rgba(248, 250, 252, 0.45)",
+                      "rgba(248, 250, 252, 0.85)",
+                      "#F8FAFC",
                     ]}
-                    locations={[0, 0.45, 1]}
+                    locations={[0, 0.4, 0.85]}
+
                     style={[StyleSheet.absoluteFill, styles.slideInnerPad]}>
                     <View
                       style={[
@@ -207,7 +207,7 @@ export default function OnboardingScreen() {
           </ScrollView>
         </View>
 
-        <SafeAreaView edges={["bottom"]} style={styles.footerSafe}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.footerInner}>
             <View style={styles.dotsRow}>
               {SLIDES.map((s, i) => (
@@ -226,13 +226,13 @@ export default function OnboardingScreen() {
                 styles.nextBtn,
                 pressed && styles.nextBtnPressed,
               ]}
-              android_ripple={{ color: "rgba(0,0,0,0.12)" }}>
+              android_ripple={{ color: "rgba(0,0,0,0.08)" }}>
               <Text style={styles.nextLabel}>
                 {index === lastIndex ? "Get started" : "Next"}
               </Text>
             </Pressable>
           </View>
-        </SafeAreaView>
+        </View>
       </View>
     </>
   );
@@ -241,41 +241,32 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#1A293B",
+    backgroundColor: "#F8FAFC",
   },
-  topSafe: {
-    flexShrink: 0,
-    zIndex: 2,
-  },
-  headerRow: {
+  headerPosition: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    zIndex: 100,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
   },
   backBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(0,0,0,0.03)",
     alignItems: "center",
     justifyContent: "center",
   },
-  skipHit: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
   skipText: {
-    color: "rgba(255,255,255,0.9)",
+    color: "#64748B",
     fontSize: 16,
     fontWeight: "600",
   },
   scrollHost: {
     flex: 1,
-    minHeight: 0,
-    zIndex: 1,
   },
   hScroll: {
     flex: 1,
@@ -288,23 +279,23 @@ const styles = StyleSheet.create({
   },
   slideInnerPad: {
     paddingHorizontal: 32,
-    paddingTop: 16,
+    paddingTop: 100, // accommodate status bar
     paddingBottom: 24,
     justifyContent: "space-between",
   },
   iconTop: {
     alignItems: "center",
-    marginTop: 12,
-  },
-  iconTopLogo: {
     marginTop: 20,
   },
+  iconTopLogo: {
+    marginTop: 40,
+  },
   iconCard: {
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(0, 101, 234, 0.06)",
     padding: 24,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderRadius: 32,
+    borderWidth: 1.5,
+    borderColor: "rgba(0, 101, 234, 0.12)",
   },
   logoWide: {
     width: 260,
@@ -312,48 +303,36 @@ const styles = StyleSheet.create({
     maxWidth: "92%",
   },
   textBlock: {
-    paddingBottom: 8,
+    paddingBottom: 40,
   },
   title: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#fff",
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#0F172A",
     textAlign: "center",
     marginBottom: 12,
-    lineHeight: 32,
+    lineHeight: 36,
   },
   body: {
     fontSize: 16,
-    color: "rgba(255,255,255,0.82)",
+    color: "#475569",
     textAlign: "center",
     lineHeight: 24,
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
   },
-  footerSafe: {
-    flexShrink: 0,
-    backgroundColor: "#1A293B",
-    zIndex: 10,
-    elevation: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.12,
-        shadowRadius: 6,
-      },
-    }),
+  footer: {
+    backgroundColor: "#F8FAFC",
+    paddingTop: 8,
   },
   footerInner: {
     paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 8,
   },
   dotsRow: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   dot: {
     height: 8,
@@ -361,26 +340,36 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     width: 32,
-    backgroundColor: "#fff",
+    backgroundColor: "#0065EA",
   },
   dotIdle: {
     width: 8,
-    backgroundColor: "rgba(255,255,255,0.35)",
+    backgroundColor: "rgba(0, 0, 0, 0.08)",
   },
   nextBtn: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: "#0065EA",
+    borderRadius: 16,
+    paddingVertical: 18,
     paddingHorizontal: 24,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#0065EA",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
   },
   nextBtnPressed: {
-    opacity: 0.92,
+    transform: [{ scale: 0.98 }],
+    opacity: 0.95,
   },
   nextLabel: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#1A293B",
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
   },
 });
+
+
+
